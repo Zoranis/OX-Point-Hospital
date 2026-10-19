@@ -26,7 +26,7 @@ To check that they work, run `dotnet --version` (should print 9.0.300 or higher)
 ## 2. Get the code
 
 ```bash
-git clone [<repository-url>](https://github.com/Zoranis/OX-Point-Hospital) oxbox-poc
+git clone https://github.com/Zoranis/OX-Point-Hospital oxbox-poc
 ```
 ```bash
 cd oxbox-poc
