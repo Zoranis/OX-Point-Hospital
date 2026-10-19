@@ -1,0 +1,146 @@
+@page "/cylinders/{Barcode}"
+@rendermode InteractiveServer
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject SiteClock Clock
+@inject TimeProvider Time
+
+<PageTitle>@Barcode · OxBox</PageTitle>
+
+<p><a href="cylinders">← Cylinders</a></p>
+
+@if (_cylinder is null)
+{
+    <h1>@Barcode</h1>
+    <p>@(_loaded ? "This cylinder is not registered, or belongs to a cost centre you cannot see." : "Loading…")</p>
+}
+else
+{
+    <h1>@_cylinder.Barcode</h1>
+    <dl class="row">
+        <dt class="col-sm-3">Cost centre</dt>
+        <dd class="col-sm-9">@_cylinder.CostCentre.Code · @_cylinder.CostCentre.Name</dd>
+        <dt class="col-sm-3">Status</dt>
+        <dd class="col-sm-9">@(_cylinder.Status == CylinderStatus.Full ? "Full" : "Empty")</dd>
+        <dt class="col-sm-3">Where</dt>
+        <dd class="col-sm-9">@_where</dd>
+        <dt class="col-sm-3">In use</dt>
+        <dd class="col-sm-9">@(_cylinder.IsActive ? "Yes" : "No, deactivated")</dd>
+    </dl>
+
+    @if (_scope.IsAdmin && _cylinder.IsActive)
+    {
+        <div class="card border-danger mb-4">
+            <div class="card-body">
+                <h2 class="h6">Deactivate</h2>
+                <p class="small text-muted mb-2">For a damaged or lost cylinder. It can no longer be exchanged or restocked; its history is kept.</p>
+                @if (_confirmDeactivate)
+                {
+                    <button type="button" class="btn btn-danger me-2" @onclick="DeactivateAsync">Yes, deactivate @_cylinder.Barcode</button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => _confirmDeactivate = false">Cancel</button>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-outline-danger" @onclick="() => _confirmDeactivate = true">Deactivate…</button>
+                }
+                @if (_message is { } message)
+                {
+                    <p class="alert alert-danger mt-2 mb-0">@message</p>
+                }
+            </div>
+        </div>
+    }
+
+    <h2 class="h5">History</h2>
+    <table class="table table-sm">
+        <thead><tr><th>Time</th><th>What happened</th><th>Box / slot</th><th>Flag</th></tr></thead>
+        <tbody>
+            @foreach (var entry in _history)
+            {
+                <tr>
+                    <td>@Clock.Format(entry.AtUtc)</td>
+                    <td>@entry.What</td>
+                    <td>@entry.Where</td>
+                    <td>@entry.Flag</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private UserScope _scope = null!;
+    private Cylinder? _cylinder;
+    private string _where = string.Empty;
+    private List<HistoryEntry> _history = [];
+    private bool _loaded;
+    private bool _confirmDeactivate;
+    private string? _message;
+
+    [Parameter]
+    public string Barcode { get; set; } = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _scope = UserScope.From((await AuthenticationState).User);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await Contexts.CreateDbContextAsync();
+        _cylinder = await db.Cylinders.AsNoTracking().Include(c => c.CostCentre).SingleOrDefaultAsync(c => c.Barcode == Barcode);
+        _loaded = true;
+        if (_cylinder is null || !_scope.MaySee(_cylinder.CostCentre.Code))
+        {
+            _cylinder = null;
+            return;
+        }
+
+        _where = Cylinders.LocationText(_cylinder.Location);
+        if (_cylinder.PositionId is { } positionId)
+        {
+            var slot = await db.Positions.Where(p => p.Id == positionId)
+                .Join(db.Boxes, p => p.BoxId, b => b.Id, (p, b) => new { p.Number, b.Code }).SingleAsync();
+            _where = $"In box {slot.Code}, slot {slot.Number}";
+        }
+
+        var transactions = await db.CylinderTransactions.AsNoTracking().Where(t => t.Barcode == _cylinder.Barcode).ToListAsync();
+
+        // Every status change happens at a box and comes with a transaction carrying its flag.
+        _history = [.. transactions.Select(t => new HistoryEntry(t.AtUtc, ActionText(t.Action), t.PositionNumber > 0 ? $"{t.BoxCode} / {t.PositionNumber}" : t.BoxCode, t.FlagAtTime.ToString(System.Globalization.CultureInfo.InvariantCulture))).OrderByDescending(h => h.AtUtc)];
+    }
+
+    private async Task DeactivateAsync()
+    {
+        await using var db = await Contexts.CreateDbContextAsync();
+        var cylinder = await db.Cylinders.SingleAsync(c => c.Id == _cylinder!.Id);
+        try
+        {
+            cylinder.Deactivate();
+        }
+        catch (InvalidOperationException)
+        {
+            _message = "This cylinder is in a box. It can be deactivated once it has left the box: after a user takes it, or a technician takes it out.";
+            _confirmDeactivate = false;
+            return;
+        }
+
+        await db.SaveChangesAsync();
+        _confirmDeactivate = false;
+        await LoadAsync();
+    }
+
+    public static string ActionText(CylinderAction action) => action switch
+    {
+        CylinderAction.Return => "Returned empty at the box",
+        CylinderAction.Dispense => "Dispensed full (invoiced)",
+        CylinderAction.RestockOut => "Taken out empty for refilling",
+        CylinderAction.RestockIn => "Restocked full",
+        _ => action.ToString(),
+    };
+
+    private sealed record HistoryEntry(DateTimeOffset AtUtc, string What, string Where, string Flag);
+}

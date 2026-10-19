@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Ready.Title" xml:space="preserve">
+    <value>Výměna kyslíkové láhve</value>
+  </data>
+  <data name="Ready.Body" xml:space="preserve">
+    <value>Naskenujte čárový kód prázdné láhve, kterou vracíte.</value>
+  </data>
+  <data name="OutOfService.Title" xml:space="preserve">
+    <value>Box je mimo provoz</value>
+  </data>
+  <data name="OutOfService.Body" xml:space="preserve">
+    <value>Výměna teď není možná. Obraťte se prosím na údržbu.</value>
+  </data>
+  <data name="Exchange.Title" xml:space="preserve">
+    <value>Schránky jsou otevřené</value>
+  </data>
+  <data name="Exchange.Body" xml:space="preserve">
+    <value>Vložte prázdnou láhev, vyjměte plnou a obě dvířka zavřete.</value>
+  </data>
+  <data name="Exchange.ReturnSlot" xml:space="preserve">
+    <value>Prázdnou sem</value>
+  </data>
+  <data name="Exchange.FullSlot" xml:space="preserve">
+    <value>Plnou vyjměte</value>
+  </data>
+  <data name="Error.UnknownBarcode.Title" xml:space="preserve">
+    <value>Tento kód box nezná</value>
+  </data>
+  <data name="Error.UnknownBarcode.Body" xml:space="preserve">
+    <value>Láhev není v systému evidována nebo je vyřazená, nic nebylo otevřeno. Obraťte se na údržbu.</value>
+  </data>
+  <data name="Error.AlreadyReturned.Title" xml:space="preserve">
+    <value>Tato láhev už je v boxu</value>
+  </data>
+  <data name="Error.AlreadyReturned.Body" xml:space="preserve">
+    <value>Naskenujte prázdnou láhev, kterou vracíte.</value>
+  </data>
+  <data name="Error.NotAtCostCentre.Title" xml:space="preserve">
+    <value>Láhev není vedena na vašem oddělení</value>
+  </data>
+  <data name="Error.NotAtCostCentre.Body" xml:space="preserve">
+    <value>Nic nebylo otevřeno. Obraťte se na údržbu.</value>
+  </data>
+  <data name="Error.NoFullCylinderForCostCentre.Title" xml:space="preserve">
+    <value>Pro vaše oddělení teď není plná láhev</value>
+  </data>
+  <data name="Error.NoFullCylinderForCostCentre.Body" xml:space="preserve">
+    <value>Nic nebylo otevřeno. Údržba už byla upozorněna.</value>
+  </data>
+  <data name="Error.NoFreePosition.Title" xml:space="preserve">
+    <value>Box je plný</value>
+  </data>
+  <data name="Error.NoFreePosition.Body" xml:space="preserve">
+    <value>Láhev není kam vrátit. Obraťte se na údržbu.</value>
+  </data>
+  <data name="Error.HardwareFault.Title" xml:space="preserve">
+    <value>Schránku se nepodařilo otevřít</value>
+  </data>
+  <data name="Error.HardwareFault.Body" xml:space="preserve">
+    <value>Nic nebylo zaznamenáno. Obraťte se prosím na údržbu.</value>
+  </data>
+  <data name="Error.DispenseFailed.Title" xml:space="preserve">
+    <value>Plnou láhev se nepodařilo vydat</value>
+  </data>
+  <data name="Error.DispenseFailed.Body" xml:space="preserve">
+    <value>Vložte prázdnou láhev do otevřené schránky a zavřete dvířka. Pro plnou láhev se obraťte na údržbu.</value>
+  </data>
+  <data name="Service.Technician" xml:space="preserve">
+    <value>Servis · {0}</value>
+  </data>
+  <data name="Service.Title" xml:space="preserve">
+    <value>Servisní režim</value>
+  </data>
+  <data name="Service.Empties" xml:space="preserve">
+    <value>Vyjměte prázdné láhve ze schránek: {0}.</value>
+  </data>
+  <data name="Service.NoEmpties" xml:space="preserve">
+    <value>V boxu nejsou žádné prázdné láhve.</value>
+  </data>
+  <data name="Service.Body" xml:space="preserve">
+    <value>Pak naskenujte každou plnou láhev, otevře se pro ni volná schránka. Vloženo: {0}. Servis ukončíte naskenováním servisní karty.</value>
+  </data>
+  <data name="Service.InsertSlot" xml:space="preserve">
+    <value>Plnou sem</value>
+  </data>
+  <data name="Service.Finished.Title" xml:space="preserve">
+    <value>Servis ukončen</value>
+  </data>
+  <data name="Service.Finished.Body" xml:space="preserve">
+    <value>Vyjmuto prázdných: {0}, vloženo plných: {1}. Děkujeme.</value>
+  </data>
+  <data name="ServiceError.UnknownBarcode.Title" xml:space="preserve">
+    <value>Tento kód box nezná</value>
+  </data>
+  <data name="ServiceError.UnknownBarcode.Body" xml:space="preserve">
+    <value>Nic nebylo otevřeno. Láhev musí být zaevidovaná a v provozu.</value>
+  </data>
+  <data name="ServiceError.AlreadyInBox.Title" xml:space="preserve">
+    <value>Tato láhev už je v boxu</value>
+  </data>
+  <data name="ServiceError.AlreadyInBox.Body" xml:space="preserve">
+    <value>Naskenujte další plnou láhev.</value>
+  </data>
+  <data name="ServiceError.AtCostCentre.Title" xml:space="preserve">
+    <value>Láhev je vedena na oddělení</value>
+  </data>
+  <data name="ServiceError.AtCostCentre.Body" xml:space="preserve">
+    <value>Nelze ji naskladnit jako plnou. Oddělení ji musí vrátit běžnou výměnou.</value>
+  </data>
+  <data name="ServiceError.BoxFull.Title" xml:space="preserve">
+    <value>Box je plný</value>
+  </data>
+  <data name="ServiceError.BoxFull.Body" xml:space="preserve">
+    <value>Pro další láhev už není volná schránka.</value>
+  </data>
+  <data name="ServiceError.NoSlotOpened.Title" xml:space="preserve">
+    <value>Schránku se nepodařilo otevřít</value>
+  </data>
+  <data name="ServiceError.NoSlotOpened.Body" xml:space="preserve">
+    <value>Láhev nebyla zaznamenána. Nahlaste poruchu správci.</value>
+  </data>
+</root>

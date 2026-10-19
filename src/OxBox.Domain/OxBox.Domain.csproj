@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure domain model. The only reference is the pure protocol library, for lock addresses. -->
+  <ItemGroup>
+    <ProjectReference Include="..\OxBox.OxPointProtocol\OxBox.OxPointProtocol.csproj" />
+  </ItemGroup>
+
+</Project>

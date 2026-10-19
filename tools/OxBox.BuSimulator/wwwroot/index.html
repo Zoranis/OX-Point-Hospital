@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BU Simulator</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>OX Point BU simulator</h1>
+      <p class="subtitle">Stands in for the box hardware. Scan barcodes and close doors here.</p>
+    </div>
+    <span id="clients" class="pill">No server connected</span>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="scan-title">
+      <h2 id="scan-title">Barcode reader</h2>
+      <form id="scan-form" class="scan-form">
+        <label for="scan-code" class="visually-hidden">Barcode</label>
+        <input id="scan-code" autocomplete="off" placeholder="Type a barcode, e.g. O2-INT-04" required>
+        <button type="submit">Scan</button>
+      </form>
+      <div id="quick-codes" class="chips" aria-label="Demo barcodes"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="signal-title">
+      <h2 id="signal-title">Signals</h2>
+      <div class="signals">
+        <div class="signal"><span id="lamp-green" class="lamp green" role="img" aria-label="Green lamp off"></span>Green lamp<small>relay 0</small></div>
+        <div class="signal"><span id="lamp-red" class="lamp red" role="img" aria-label="Red lamp off"></span>Red lamp + buzzer<small>relay 1</small></div>
+        <div class="signal"><span id="keypad-led" class="lamp keypad" role="img" aria-label="Keypad LED off"></span>Keypad LED<small>GR / BR</small></div>
+      </div>
+      <label class="check"><input id="sound" type="checkbox"> Play the buzzer and success tones</label>
+    </section>
+
+    <section class="panel wide" aria-labelledby="box-title">
+      <div class="panel-head">
+        <h2 id="box-title">Compartments</h2>
+        <div class="legend">
+          <span><i class="dot closed"></i>Closed</span>
+          <span><i class="dot open"></i>Open, click to close</span>
+          <span><i class="dot jammed"></i>Jammed lock</span>
+        </div>
+      </div>
+      <div id="slots" class="slots"></div>
+      <p class="hint">Right-click a compartment to jam or free its lock. A jammed lock never answers, so the server's fault handling can be seen.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="traffic-title">
+      <h2 id="traffic-title">Protocol traffic</h2>
+      <ol id="traffic" class="traffic"></ol>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

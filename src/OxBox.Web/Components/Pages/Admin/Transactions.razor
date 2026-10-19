@@ -1,0 +1,112 @@
+@page "/transactions"
+@rendermode InteractiveServer
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject SiteClock Clock
+
+<PageTitle>Transactions · OxBox</PageTitle>
+
+<h1>Transactions</h1>
+<p class="lead">Every cylinder movement at every box: who (which cost centre or technician), when, which cylinder, and what happened.</p>
+
+<div class="row g-2 mb-3 align-items-end">
+    <div class="col-md-2"><label class="form-label" for="t-from">From</label><input id="t-from" type="date" class="form-control" @bind="_from" @bind:after="SearchAsync" /></div>
+    <div class="col-md-2"><label class="form-label" for="t-to">To</label><input id="t-to" type="date" class="form-control" @bind="_to" @bind:after="SearchAsync" /></div>
+    <div class="col-md-2">
+        <label class="form-label" for="t-box">Box</label>
+        <select id="t-box" class="form-select" @bind="_box" @bind:after="SearchAsync">
+            <option value="">All boxes</option>
+            @foreach (var box in _boxes) { <option value="@box">@box</option> }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label" for="t-cc">Cost centre</label>
+        <select id="t-cc" class="form-select" @bind="_costCentre" @bind:after="SearchAsync">
+            <option value="">All</option>
+            @foreach (var costCentre in _costCentres) { <option value="@costCentre">@costCentre</option> }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label" for="t-action">Action</label>
+        <select id="t-action" class="form-select" @bind="_action" @bind:after="SearchAsync">
+            <option value="">All</option>
+            @foreach (var action in Enum.GetValues<CylinderAction>()) { <option value="@action">@CylinderDetail.ActionText(action)</option> }
+        </select>
+    </div>
+    <div class="col-md-2"><label class="form-label" for="t-barcode">Barcode</label><input id="t-barcode" class="form-control" @bind="_barcode" @bind:event="oninput" @bind:after="SearchAsync" /></div>
+</div>
+
+<p>
+    @_total transaction(s).
+    <a class="btn btn-sm btn-outline-primary ms-2" href="@($"export/transactions.csv{Filter.ToQueryString()}")" download>Export CSV</a>
+</p>
+
+<table class="table table-sm">
+    <thead><tr><th>Time</th><th>Box</th><th>Slot</th><th>Barcode</th><th>Cost centre</th><th>What happened</th><th>By</th><th>Flag</th></tr></thead>
+    <tbody>
+        @foreach (var t in _page)
+        {
+            <tr>
+                <td class="text-nowrap">@Clock.FormatWithSeconds(t.AtUtc)</td>
+                <td>@t.BoxCode</td>
+                <td>@(t.PositionNumber > 0 ? t.PositionNumber : "—")</td>
+                <td><a href="cylinders/@Uri.EscapeDataString(t.Barcode)">@t.Barcode</a></td>
+                <td>@t.CostCentreCode</td>
+                <td>@CylinderDetail.ActionText(t.Action)</td>
+                <td>@(t.TechnicianId is { } id ? _technicians.GetValueOrDefault(id) : "User at the box")</td>
+                <td>@t.FlagAtTime</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<nav class="d-flex gap-2 align-items-center" aria-label="Pages">
+    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@(_pageNumber == 0)" @onclick="() => GoToAsync(_pageNumber - 1)">Newer</button>
+    <span>Page @(_pageNumber + 1) of @Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize))</span>
+    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@((_pageNumber + 1) * PageSize >= _total)" @onclick="() => GoToAsync(_pageNumber + 1)">Older</button>
+</nav>
+
+@code {
+    private const int PageSize = 50;
+
+    private UserScope _scope = null!;
+    private List<string> _boxes = [];
+    private List<string> _costCentres = [];
+    private Dictionary<int, string> _technicians = [];
+    private List<CylinderTransaction> _page = [];
+    private int _total;
+    private int _pageNumber;
+
+    private DateOnly? _from;
+    private DateOnly? _to;
+    private string _box = string.Empty;
+    private string _costCentre = string.Empty;
+    private string _action = string.Empty;
+    private string _barcode = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    private TransactionFilter Filter => new(
+        _from, _to, _box, _costCentre, Enum.TryParse<CylinderAction>(_action, out var action) ? action : null, _barcode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _scope = UserScope.From((await AuthenticationState).User);
+        await using var db = await Contexts.CreateDbContextAsync();
+        _boxes = await db.Boxes.OrderBy(b => b.Code).Select(b => b.Code).ToListAsync();
+        _costCentres = [.. (await db.CostCentres.OrderBy(c => c.Code).Select(c => c.Code).ToListAsync()).Where(_scope.MaySee)];
+        _technicians = await db.Technicians.ToDictionaryAsync(t => t.Id, t => t.Name);
+        await SearchAsync();
+    }
+
+    private Task SearchAsync() => GoToAsync(0);
+
+    private async Task GoToAsync(int pageNumber)
+    {
+        _pageNumber = pageNumber;
+        await using var db = await Contexts.CreateDbContextAsync();
+        var query = Filter.Apply(db.CylinderTransactions.AsNoTracking(), Clock, _scope);
+        _total = await query.CountAsync();
+        _page = await query.Skip(pageNumber * PageSize).Take(PageSize).ToListAsync();
+    }
+}

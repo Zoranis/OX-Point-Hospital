@@ -1,0 +1,231 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject BoxStatusBoard StatusBoard
+@inject SiteClock Clock
+
+<PageTitle>Dashboard · OxBox</PageTitle>
+
+<h1>Dashboard</h1>
+
+@if (_data is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <section class="mb-4" aria-labelledby="alerts-title">
+        <h2 id="alerts-title" class="h5">Active alerts</h2>
+        @if (_data.Alerts.Count == 0)
+        {
+            <p class="text-success mb-0">No active alerts.</p>
+        }
+        else
+        {
+            <ul class="alert-list">
+                @foreach (var alert in _data.Alerts)
+                {
+                    <li class="alert-item alert-@Severity(alert.Kind)">
+                        <strong>@alert.Details</strong>
+                        <span class="text-muted">since @Clock.Format(alert.RaisedAtUtc)</span>
+                    </li>
+                }
+            </ul>
+            <a href="alerts">All alerts and their delivery</a>
+        }
+        @if (_scope.IsAdmin && _data.RecipientCount == 0)
+        {
+            <p class="alert alert-warning mt-2 mb-0">Nobody receives alert e-mails or SMS yet. <a href="alerts">Add a recipient</a>.</p>
+        }
+    </section>
+
+    @foreach (var box in _data.Boxes)
+    {
+        <section class="box-card mb-4" aria-labelledby="box-@box.Box.Code">
+            <header class="box-card-head">
+                <div>
+                    <h2 id="box-@box.Box.Code" class="h4 mb-0">@box.Box.Name <small class="text-muted">@box.Box.Code</small></h2>
+                    <span class="text-muted">@box.Box.Site</span>
+                </div>
+                <span class="mode-pill mode-@box.ModeClass">@box.Mode</span>
+            </header>
+
+            <div class="box-card-body">
+                <div>
+                    <h3 class="h6">Slots</h3>
+                    <div class="slot-grid" role="list">
+                        @foreach (var slot in box.Slots)
+                        {
+                            <div class="slot-tile slot-@slot.State" role="listitem" title="@slot.Tooltip">
+                                <span class="slot-number">@slot.Number</span>
+                                <span class="slot-cc">@slot.CostCentre</span>
+                                <span class="slot-barcode">@slot.Barcode</span>
+                            </div>
+                        }
+                    </div>
+                    <div class="slot-legend">
+                        <span><i class="slot-full"></i>Full</span>
+                        <span><i class="slot-empty"></i>Empty</span>
+                        <span><i class="slot-free"></i>Free</span>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="h6">Full cylinders per cost centre</h3>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Cost centre</th><th class="text-end">Full</th><th class="text-end">Alert at</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var stock in box.Stock)
+                            {
+                                <tr>
+                                    <td>@stock.Name <small class="text-muted">@stock.Code</small></td>
+                                    <td class="text-end">@stock.Full</td>
+                                    <td class="text-end">≤ @stock.Threshold</td>
+                                    <td><span class="stock-chip stock-@stock.Level.ToLowerInvariant()">@stock.Level</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <p class="small">
+                        <a href="kiosk/@box.Box.Code" target="_blank" rel="noopener">Open this box's display</a>
+                    </p>
+                </div>
+            </div>
+        </section>
+    }
+
+    @if (_data.Boxes.Count == 0)
+    {
+        <p>No boxes yet. @if (_scope.IsAdmin) { <a href="boxes">Add the first box</a> }</p>
+    }
+}
+
+@code {
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(3);
+
+    private DashboardData? _data;
+    private UserScope _scope = null!;
+    private PeriodicTimer? _timer;
+    private Task? _refreshing;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _scope = UserScope.From((await AuthenticationState).User);
+        await LoadAsync();
+        _timer = new PeriodicTimer(RefreshInterval);
+        _refreshing = RefreshAsync(_timer);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _timer?.Dispose();
+        if (_refreshing is not null)
+        {
+            await _refreshing;
+        }
+    }
+
+    // The slot grid follows the box live: an exchange or a restock shows up within seconds.
+    private async Task RefreshAsync(PeriodicTimer timer)
+    {
+        while (await timer.WaitForNextTickAsync())
+        {
+            await LoadAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await Contexts.CreateDbContextAsync();
+        var settings = await db.SystemSettings.AsNoTracking().SingleAsync();
+        var boxes = await db.Boxes.AsNoTracking().Include(b => b.Positions).OrderBy(b => b.Code).ToListAsync();
+        var inBox = await db.Cylinders.AsNoTracking().Include(c => c.CostCentre)
+            .Where(c => c.Location == CylinderLocation.InBox).ToListAsync();
+        var costCentres = await db.CostCentres.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Code).ToListAsync();
+        var served = await db.CylinderTransactions.AsNoTracking().Select(t => new { t.BoxCode, t.CostCentreCode }).Distinct().ToListAsync();
+
+        var alerts = await db.Alerts.AsNoTracking().Where(a => a.ClearedAtUtc == null).OrderByDescending(a => a.RaisedAtUtc).ToListAsync();
+        if (_scope.AllowedCostCentres is not null)
+        {
+            var visibleIds = costCentres.Where(c => _scope.MaySee(c.Code)).Select(c => c.Id).ToHashSet();
+            alerts = [.. alerts.Where(a => visibleIds.Contains(a.CostCentreId))];
+        }
+
+        var boxViews = new List<BoxView>();
+        foreach (var box in boxes)
+        {
+            var positionIds = box.Positions.Select(p => p.Id).ToHashSet();
+            var cylinders = inBox.Where(c => c.PositionId is { } id && positionIds.Contains(id)).ToDictionary(c => c.PositionId!.Value);
+            var slots = box.Positions.OrderBy(p => p.Number).Select(p => Slot(p, cylinders.GetValueOrDefault(p.Id))).ToList();
+
+            var stock = costCentres
+                .Where(c => _scope.MaySee(c.Code)
+                    && (served.Any(s => s.BoxCode == box.Code && s.CostCentreCode == c.Code) || cylinders.Values.Any(cyl => cyl.CostCentreId == c.Id)))
+                .Select(c =>
+                {
+                    var full = cylinders.Values.Count(cyl => cyl.CostCentreId == c.Id && cyl.Status == CylinderStatus.Full);
+                    var threshold = c.LowStockThreshold ?? settings.LowStockThreshold;
+                    var level = full switch { 0 => "None", 1 => "Last", _ when full <= threshold => "Low", _ => "OK" };
+                    return new StockView(c.Code, c.Name, full, threshold, level);
+                })
+                .ToList();
+
+            var (mode, modeClass) = Mode(StatusBoard.Get(box.Id));
+            boxViews.Add(new BoxView(box, mode, modeClass, slots, stock));
+        }
+
+        var recipients = await db.AlertRecipients.CountAsync(r => r.IsActive);
+        _data = new DashboardData(boxViews, alerts, recipients);
+    }
+
+    private SlotView Slot(Position position, Cylinder? cylinder)
+    {
+        var state = cylinder switch
+        {
+            null => "free",
+            { Status: CylinderStatus.Full } => "full",
+            _ => "empty",
+        };
+
+        if (cylinder is null)
+        {
+            return new SlotView(position.Number, state, string.Empty, string.Empty, $"Slot {position.Number}: {state}");
+        }
+
+        // A viewer sees which slots are taken, but not other departments' cylinders.
+        var visible = _scope.MaySee(cylinder.CostCentre.Code);
+        var costCentre = visible ? cylinder.CostCentre.Code : "other";
+        var barcode = visible ? cylinder.Barcode : string.Empty;
+        return new SlotView(position.Number, state, costCentre, barcode,
+            $"Slot {position.Number}: {cylinder.Status.ToString().ToLowerInvariant()} {barcode} ({costCentre})");
+    }
+
+    private static (string Text, string Class) Mode(BoxLiveStatus live) => live switch
+    {
+        { IsRunHere: false } => ("Not run by this server", "muted"),
+        { IsConnected: false } => ("Offline", "danger"),
+        _ => ("Online", "ok"),
+    };
+
+    private static string Severity(AlertKind kind) => kind switch
+    {
+        AlertKind.NoFullCylinder => "high",
+        AlertKind.LastFullCylinder => "medium",
+        _ => "low",
+    };
+
+    private sealed record DashboardData(IReadOnlyList<BoxView> Boxes, IReadOnlyList<Alert> Alerts, int RecipientCount);
+
+    private sealed record BoxView(Box Box, string Mode, string ModeClass, IReadOnlyList<SlotView> Slots, IReadOnlyList<StockView> Stock);
+
+    private sealed record SlotView(int Number, string State, string CostCentre, string Barcode, string Tooltip);
+
+    private sealed record StockView(string Code, string Name, int Full, int Threshold, string Level);
+}

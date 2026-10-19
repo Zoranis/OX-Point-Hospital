@@ -1,0 +1,43 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+
+@* Set here, not on the page: the page is not pre-rendered, so its title would come too late
+   for the server-rendered head. *@
+<PageTitle>OxBox · @_boxCode</PageTitle>
+
+<HeadContent>
+    <link rel="stylesheet" href="@Assets["kiosk.css"]" />
+</HeadContent>
+
+<div class="kiosk-shell">
+    @Body
+</div>
+
+@* Blazor shows this element while the page has lost its server connection. The box cannot
+   serve anyone then, so it reads as "out of service" rather than as a technical error.
+   It needs no server to display, so it is rendered in every language up front; kiosk.js
+   shows the one saved on this display, otherwise the display's default from its URL. *@
+<div id="components-reconnect-modal" class="kiosk kiosk-offline kiosk-reconnect" data-language="@_defaultLanguage.Code()" role="alert">
+    @foreach (var language in Enum.GetValues<KioskLanguage>())
+    {
+        <div class="kiosk-reconnect-text" lang="@language.Code()">
+            <h1>@KioskTexts.Get("OutOfService.Title", language)</h1>
+            <p>@KioskTexts.Get("OutOfService.Body", language)</p>
+        </div>
+    }
+</div>
+
+<script src="@Assets["kiosk.js"]"></script>
+
+@code {
+    private KioskLanguage _defaultLanguage;
+    private string _boxCode = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _defaultLanguage = KioskLanguages.DefaultFromUrl(Navigation.Uri);
+
+        // This layout serves only "/kiosk/{boxCode}", so the box code is the last path segment.
+        _boxCode = Uri.UnescapeDataString(new Uri(Navigation.Uri).Segments[^1]);
+    }
+}

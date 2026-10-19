@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- OX Point BU message contracts. Pure: no sockets, no I/O. -->
+
+</Project>

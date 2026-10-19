@@ -1,0 +1,195 @@
+@page "/alerts"
+@rendermode InteractiveServer
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject SiteClock Clock
+
+<PageTitle>Alerts · OxBox</PageTitle>
+
+<h1>Alerts</h1>
+<p class="lead">
+    Each condition is sent once, by e-mail and SMS, when it starts. An alert clears itself once the stock is back above its level.
+</p>
+
+<section class="mb-4">
+    <h2 class="h5">Active</h2>
+    @if (_active.Count == 0)
+    {
+        <p class="text-success">No active alerts.</p>
+    }
+    else
+    {
+        <table class="table align-middle">
+            <thead><tr><th>Since</th><th>Alert</th><th>Messages</th></tr></thead>
+            <tbody>
+                @foreach (var alert in _active)
+                {
+                    <tr>
+                        <td class="text-nowrap">@Clock.Format(alert.RaisedAtUtc)</td>
+                        <td>@alert.Details</td>
+                        <td>@Delivery(alert.Id)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@if (_scope.IsAdmin)
+{
+    <section class="card mb-4">
+        <div class="card-body">
+            <h2 class="h5">Who receives alerts</h2>
+            <p class="small text-muted">
+                Recipients for "all alerts" get every alert. Recipients of a cost centre get that cost centre's alerts only.
+                SMS are only logged until an SMS provider is configured.
+            </p>
+            <table class="table table-sm align-middle">
+                <thead><tr><th>Name</th><th>E-mail</th><th>Phone</th><th>Receives</th><th>Active</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var recipient in _recipients)
+                    {
+                        <tr class="@(recipient.IsActive ? null : "text-muted")">
+                            <td>@recipient.Name</td>
+                            <td>@recipient.Email</td>
+                            <td>@recipient.Phone</td>
+                            <td>@(recipient.CostCentreId is { } id ? $"Stock alerts of {_costCentres.FirstOrDefault(c => c.Id == id)?.Code}" : "All alerts")</td>
+                            <td>@(recipient.IsActive ? "Yes" : "No")</td>
+                            <td><button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => ToggleRecipientAsync(recipient.Id)">@(recipient.IsActive ? "Deactivate" : "Activate")</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3"><label class="form-label" for="r-name">Name</label><input id="r-name" class="form-control" @bind="_name" /></div>
+                <div class="col-md-3"><label class="form-label" for="r-email">E-mail</label><input id="r-email" type="email" class="form-control" @bind="_email" /></div>
+                <div class="col-md-2"><label class="form-label" for="r-phone">Phone</label><input id="r-phone" class="form-control" @bind="_phone" /></div>
+                <div class="col-md-2">
+                    <label class="form-label" for="r-cc">Receives</label>
+                    <select id="r-cc" class="form-select" @bind="_costCentreId">
+                        <option value="0">All alerts</option>
+                        @foreach (var costCentre in _costCentres)
+                        {
+                            <option value="@costCentre.Id">Stock of @costCentre.Code</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2"><button type="button" class="btn btn-primary w-100" @onclick="AddRecipientAsync">Add</button></div>
+            </div>
+            @if (_message is { } message)
+            {
+                <p class="alert @(_ok ? "alert-success" : "alert-danger") mt-3 mb-0">@message</p>
+            }
+            <p class="small mt-3 mb-0">The low-stock threshold is set on the <a href="settings">Settings</a> page, and per cost centre on <a href="cost-centres">Cost centres</a>.</p>
+        </div>
+    </section>
+}
+
+<section>
+    <h2 class="h5">Recent history</h2>
+    <table class="table table-sm">
+        <thead><tr><th>Raised</th><th>Cleared</th><th>Alert</th><th>Messages</th></tr></thead>
+        <tbody>
+            @foreach (var alert in _history)
+            {
+                <tr>
+                    <td class="text-nowrap">@Clock.Format(alert.RaisedAtUtc)</td>
+                    <td class="text-nowrap">@(alert.ClearedAtUtc is { } cleared ? Clock.Format(cleared) : "Active")</td>
+                    <td>@alert.Details</td>
+                    <td>@Delivery(alert.Id)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>
+
+@code {
+    private UserScope _scope = null!;
+    private List<Alert> _active = [];
+    private List<Alert> _history = [];
+    private List<OutboxMessage> _messages = [];
+    private List<AlertRecipient> _recipients = [];
+    private List<CostCentre> _costCentres = [];
+    private string _name = string.Empty;
+    private string _email = string.Empty;
+    private string _phone = string.Empty;
+    private int _costCentreId;
+    private string? _message;
+    private bool _ok;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _scope = UserScope.From((await AuthenticationState).User);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await Contexts.CreateDbContextAsync();
+        _costCentres = await db.CostCentres.AsNoTracking().OrderBy(c => c.Code).ToListAsync();
+        var query = db.Alerts.AsNoTracking();
+        if (_scope.AllowedCostCentres is { } allowed)
+        {
+            var ids = _costCentres.Where(c => allowed.Contains(c.Code)).Select(c => c.Id).ToList();
+            query = query.Where(a => ids.Contains(a.CostCentreId));
+        }
+
+        _active = await query.Where(a => a.ClearedAtUtc == null).OrderByDescending(a => a.RaisedAtUtc).ToListAsync();
+        _history = await query.OrderByDescending(a => a.RaisedAtUtc).Take(100).ToListAsync();
+        var alertIds = _active.Concat(_history).Select(a => a.Id).Distinct().ToList();
+        _messages = await db.OutboxMessages.AsNoTracking().Where(m => alertIds.Contains(m.AlertId)).ToListAsync();
+        _recipients = await db.AlertRecipients.AsNoTracking().OrderBy(r => r.Name).ToListAsync();
+    }
+
+    private string Delivery(long alertId)
+    {
+        var messages = _messages.Where(m => m.AlertId == alertId).ToList();
+        if (messages.Count == 0)
+        {
+            return "Nobody to send to";
+        }
+
+        var sent = messages.Count(m => m.IsSent);
+        var failing = messages.Where(m => !m.IsSent && m.LastError is not null).ToList();
+        var text = $"{sent} of {messages.Count} sent";
+        return failing.Count > 0 ? $"{text}; retrying: {failing[0].LastError}" : text;
+    }
+
+    private async Task AddRecipientAsync()
+    {
+        try
+        {
+            await using var db = await Contexts.CreateDbContextAsync();
+            var recipient = new AlertRecipient(_name, _email, _phone, _costCentreId == 0 ? null : _costCentreId);
+            db.AlertRecipients.Add(recipient);
+            await db.SaveChangesAsync();
+            (_ok, _message) = (true, $"{recipient.Name} added. New alerts will reach them.");
+            _name = _email = _phone = string.Empty;
+            _costCentreId = 0;
+            await LoadAsync();
+        }
+        catch (ArgumentException exception)
+        {
+            (_ok, _message) = (false, exception.Message);
+        }
+    }
+
+    private async Task ToggleRecipientAsync(int id)
+    {
+        await using var db = await Contexts.CreateDbContextAsync();
+        var recipient = await db.AlertRecipients.SingleAsync(r => r.Id == id);
+        if (recipient.IsActive)
+        {
+            recipient.Deactivate();
+        }
+        else
+        {
+            recipient.Activate();
+        }
+
+        await db.SaveChangesAsync();
+        await LoadAsync();
+    }
+}

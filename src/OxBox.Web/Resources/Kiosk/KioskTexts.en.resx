@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Ready.Title" xml:space="preserve">
+    <value>Oxygen cylinder exchange</value>
+  </data>
+  <data name="Ready.Body" xml:space="preserve">
+    <value>Scan the barcode of the empty cylinder you are returning.</value>
+  </data>
+  <data name="OutOfService.Title" xml:space="preserve">
+    <value>This box is out of service</value>
+  </data>
+  <data name="OutOfService.Body" xml:space="preserve">
+    <value>Exchanges are not possible right now. Please contact maintenance.</value>
+  </data>
+  <data name="Exchange.Title" xml:space="preserve">
+    <value>Your slots are open</value>
+  </data>
+  <data name="Exchange.Body" xml:space="preserve">
+    <value>Put the empty cylinder in, take the full one out, and close both doors.</value>
+  </data>
+  <data name="Exchange.ReturnSlot" xml:space="preserve">
+    <value>Empty in</value>
+  </data>
+  <data name="Exchange.FullSlot" xml:space="preserve">
+    <value>Full out</value>
+  </data>
+  <data name="Error.UnknownBarcode.Title" xml:space="preserve">
+    <value>This code is not known</value>
+  </data>
+  <data name="Error.UnknownBarcode.Body" xml:space="preserve">
+    <value>The cylinder is not registered or has been withdrawn, so nothing was opened. Please contact maintenance.</value>
+  </data>
+  <data name="Error.AlreadyReturned.Title" xml:space="preserve">
+    <value>This cylinder is already in the box</value>
+  </data>
+  <data name="Error.AlreadyReturned.Body" xml:space="preserve">
+    <value>Scan the empty cylinder you are returning.</value>
+  </data>
+  <data name="Error.NotAtCostCentre.Title" xml:space="preserve">
+    <value>This cylinder is not recorded at your department</value>
+  </data>
+  <data name="Error.NotAtCostCentre.Body" xml:space="preserve">
+    <value>Nothing was opened. Please contact maintenance.</value>
+  </data>
+  <data name="Error.NoFullCylinderForCostCentre.Title" xml:space="preserve">
+    <value>No full cylinder for your department right now</value>
+  </data>
+  <data name="Error.NoFullCylinderForCostCentre.Body" xml:space="preserve">
+    <value>Nothing was opened. Maintenance has already been alerted.</value>
+  </data>
+  <data name="Error.NoFreePosition.Title" xml:space="preserve">
+    <value>The box is full</value>
+  </data>
+  <data name="Error.NoFreePosition.Body" xml:space="preserve">
+    <value>There is no slot to return the cylinder to. Please contact maintenance.</value>
+  </data>
+  <data name="Error.HardwareFault.Title" xml:space="preserve">
+    <value>A slot could not be opened</value>
+  </data>
+  <data name="Error.HardwareFault.Body" xml:space="preserve">
+    <value>Nothing was recorded. Please contact maintenance.</value>
+  </data>
+  <data name="Error.DispenseFailed.Title" xml:space="preserve">
+    <value>The full cylinder could not be released</value>
+  </data>
+  <data name="Error.DispenseFailed.Body" xml:space="preserve">
+    <value>Put the empty cylinder into the open slot and close the door. Please contact maintenance for your full cylinder.</value>
+  </data>
+  <data name="Service.Technician" xml:space="preserve">
+    <value>Service · {0}</value>
+  </data>
+  <data name="Service.Title" xml:space="preserve">
+    <value>Service mode</value>
+  </data>
+  <data name="Service.Empties" xml:space="preserve">
+    <value>Take the empty cylinders out of slots: {0}.</value>
+  </data>
+  <data name="Service.NoEmpties" xml:space="preserve">
+    <value>There are no empty cylinders in the box.</value>
+  </data>
+  <data name="Service.Body" xml:space="preserve">
+    <value>Then scan each full cylinder; a free slot opens for it. Put in so far: {0}. Scan your service card to finish.</value>
+  </data>
+  <data name="Service.InsertSlot" xml:space="preserve">
+    <value>Full in</value>
+  </data>
+  <data name="Service.Finished.Title" xml:space="preserve">
+    <value>Service finished</value>
+  </data>
+  <data name="Service.Finished.Body" xml:space="preserve">
+    <value>Empties taken out: {0}, full cylinders put in: {1}. Thank you.</value>
+  </data>
+  <data name="ServiceError.UnknownBarcode.Title" xml:space="preserve">
+    <value>This code is not known</value>
+  </data>
+  <data name="ServiceError.UnknownBarcode.Body" xml:space="preserve">
+    <value>Nothing was opened. The cylinder must be registered and in use.</value>
+  </data>
+  <data name="ServiceError.AlreadyInBox.Title" xml:space="preserve">
+    <value>This cylinder is already in the box</value>
+  </data>
+  <data name="ServiceError.AlreadyInBox.Body" xml:space="preserve">
+    <value>Scan the next full cylinder.</value>
+  </data>
+  <data name="ServiceError.AtCostCentre.Title" xml:space="preserve">
+    <value>This cylinder is recorded at its department</value>
+  </data>
+  <data name="ServiceError.AtCostCentre.Body" xml:space="preserve">
+    <value>It cannot be restocked as full. The department must return it with a normal exchange.</value>
+  </data>
+  <data name="ServiceError.BoxFull.Title" xml:space="preserve">
+    <value>The box is full</value>
+  </data>
+  <data name="ServiceError.BoxFull.Body" xml:space="preserve">
+    <value>There is no free slot for another cylinder.</value>
+  </data>
+  <data name="ServiceError.NoSlotOpened.Title" xml:space="preserve">
+    <value>A slot could not be opened</value>
+  </data>
+  <data name="ServiceError.NoSlotOpened.Body" xml:space="preserve">
+    <value>The cylinder was not recorded. Report the fault to an administrator.</value>
+  </data>
+</root>

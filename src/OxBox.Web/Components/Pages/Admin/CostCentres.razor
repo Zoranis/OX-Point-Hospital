@@ -1,0 +1,143 @@
+@page "/cost-centres"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject TimeProvider Time
+
+<PageTitle>Cost centres · OxBox</PageTitle>
+
+<h1>Cost centres</h1>
+<p class="lead">Hospital departments that own cylinders and are invoiced for the full ones they take.</p>
+
+<table class="table align-middle">
+    <thead>
+        <tr>
+            <th>Code</th><th>Name</th>
+            <th>Low-stock alert at <small class="text-muted fw-normal">(blank: site default, @_siteThreshold)</small></th>
+            <th>Active</th><th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var row in _rows)
+        {
+            <tr>
+                <td>@row.Code</td>
+                <td><input class="form-control form-control-sm" @bind="row.Name" aria-label="Name of @row.Code" /></td>
+                <td style="max-width: 9rem"><input type="number" min="0" class="form-control form-control-sm" @bind="row.Threshold" aria-label="Threshold of @row.Code" /></td>
+                <td><input type="checkbox" class="form-check-input" @bind="row.IsActive" aria-label="@row.Code active" /></td>
+                <td><button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => SaveAsync(row)">Save</button></td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<section class="card">
+    <div class="card-body">
+        <h2 class="h5">Add a cost centre</h2>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2"><label class="form-label" for="cc-code">Code</label><input id="cc-code" class="form-control" @bind="_newCode" /></div>
+            <div class="col-md-5"><label class="form-label" for="cc-name">Name</label><input id="cc-name" class="form-control" @bind="_newName" /></div>
+            <div class="col-md-2"><button type="button" class="btn btn-primary w-100" @onclick="AddAsync">Add</button></div>
+        </div>
+    </div>
+</section>
+
+@if (_message is { } message)
+{
+    <p class="alert @(_ok ? "alert-success" : "alert-danger") mt-3">@message</p>
+}
+
+@code {
+    private List<Row> _rows = [];
+    private int _siteThreshold;
+    private string _newCode = string.Empty;
+    private string _newName = string.Empty;
+    private string? _message;
+    private bool _ok;
+    private string _userName = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userName = UserScope.From((await AuthenticationState).User).UserName;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await Contexts.CreateDbContextAsync();
+        _siteThreshold = (await db.SystemSettings.SingleAsync()).LowStockThreshold;
+        _rows = await db.CostCentres.AsNoTracking().OrderBy(c => c.Code)
+            .Select(c => new Row { Id = c.Id, Code = c.Code, Name = c.Name, Threshold = c.LowStockThreshold, IsActive = c.IsActive })
+            .ToListAsync();
+    }
+
+    private async Task SaveAsync(Row row)
+    {
+        try
+        {
+            await using var db = await Contexts.CreateDbContextAsync();
+            var costCentre = await db.CostCentres.SingleAsync(c => c.Id == row.Id);
+            costCentre.Rename(row.Name);
+            costCentre.ChangeLowStockThreshold(row.Threshold);
+            if (row.IsActive)
+            {
+                costCentre.Activate();
+            }
+            else
+            {
+                costCentre.Deactivate();
+            }
+
+            await db.SaveChangesAsync();
+            Report(true, $"{row.Code} saved. Stock alerts use the new threshold from the next event at the box.");
+        }
+        catch (ArgumentException exception)
+        {
+            Report(false, exception.Message);
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newCode) || string.IsNullOrWhiteSpace(_newName))
+        {
+            Report(false, "Enter a code and a name.");
+            return;
+        }
+
+        await using var db = await Contexts.CreateDbContextAsync();
+        if (await db.CostCentres.AnyAsync(c => c.Code == _newCode.Trim()))
+        {
+            Report(false, $"Cost centre {_newCode.Trim()} already exists.");
+            return;
+        }
+
+        db.CostCentres.Add(new CostCentre(_newCode, _newName));
+        await db.SaveChangesAsync();
+        Report(true, $"Cost centre {_newCode.Trim()} added.");
+        _newCode = _newName = string.Empty;
+        await LoadAsync();
+    }
+
+    private void Report(bool ok, string message)
+    {
+        _ok = ok;
+        _message = message;
+    }
+
+    private sealed class Row
+    {
+        public int Id { get; init; }
+
+        public string Code { get; init; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+
+        public int? Threshold { get; set; }
+
+        public bool IsActive { get; set; }
+    }
+}

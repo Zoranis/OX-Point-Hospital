@@ -1,0 +1,111 @@
+@page "/boxes"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = Roles.Admin)]
+@using OxBox.OxPointProtocol
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject BoxStatusBoard StatusBoard
+@inject IBoxAgents Agents
+@inject TimeProvider Time
+
+<PageTitle>Boxes · OxBox</PageTitle>
+
+<h1>Boxes</h1>
+<p class="lead">Each box has its own OX Point control unit (BU) on the network. The server keeps a connection to every box.</p>
+
+<table class="table align-middle">
+    <thead><tr><th>Code</th><th>Name</th><th>Site</th><th>Control unit</th><th>Slots</th><th>Connection</th><th></th></tr></thead>
+    <tbody>
+        @foreach (var box in _boxes)
+        {
+            var live = StatusBoard.Get(box.Id);
+            <tr>
+                <td><a href="boxes/@box.Code">@box.Code</a></td>
+                <td>@box.Name</td>
+                <td>@box.Site</td>
+                <td><code>@box.BuHost:@box.BuPort</code></td>
+                <td>@box.Positions.Count</td>
+                <td>@(live.IsConnected ? "Connected" : live.IsRunHere ? "Offline" : "Not run by this server")</td>
+                <td><a href="kiosk/@box.Code" target="_blank" rel="noopener">Display</a></td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<section class="card">
+    <div class="card-body">
+        <h2 class="h5">Add a box</h2>
+        <p class="small text-muted">Slots are wired in order: slots 1–16 to lock board (CU) 0, 17–32 to CU 1, and so on. The server connects to the new box straight away.</p>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2"><label class="form-label" for="box-code">Code</label><input id="box-code" class="form-control" @bind="_code" placeholder="BOX-02" /></div>
+            <div class="col-md-3"><label class="form-label" for="box-name">Name</label><input id="box-name" class="form-control" @bind="_name" /></div>
+            <div class="col-md-3"><label class="form-label" for="box-site">Site</label><input id="box-site" class="form-control" @bind="_site" placeholder="Building, floor" /></div>
+            <div class="col-md-2"><label class="form-label" for="box-host">BU address</label><input id="box-host" class="form-control" @bind="_host" placeholder="192.168.10.21" /></div>
+            <div class="col-md-1"><label class="form-label" for="box-slots">Slots</label><input id="box-slots" type="number" min="1" max="160" class="form-control" @bind="_slots" /></div>
+            <div class="col-md-1"><button type="button" class="btn btn-primary w-100" @onclick="AddAsync">Add</button></div>
+        </div>
+    </div>
+</section>
+
+@if (_message is { } message)
+{
+    <p class="alert @(_ok ? "alert-success" : "alert-danger") mt-3">@message</p>
+}
+
+@code {
+    private List<Box> _boxes = [];
+    private string _code = string.Empty;
+    private string _name = string.Empty;
+    private string _site = string.Empty;
+    private string _host = string.Empty;
+    private int _slots = 30;
+    private string? _message;
+    private bool _ok;
+    private string _userName = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userName = UserScope.From((await AuthenticationState).User).UserName;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await Contexts.CreateDbContextAsync();
+        _boxes = await db.Boxes.AsNoTracking().Include(b => b.Positions).OrderBy(b => b.Code).ToListAsync();
+    }
+
+    private async Task AddAsync()
+    {
+        try
+        {
+            await using var db = await Contexts.CreateDbContextAsync();
+            if (await db.Boxes.AnyAsync(b => b.Code == _code.Trim()))
+            {
+                Report(false, $"Box {_code.Trim()} already exists.");
+                return;
+            }
+
+            var box = Box.CreateWithSequentialWiring(_code, _name, _site, _host, OxPointLimits.DefaultPort, _slots);
+            db.Boxes.Add(box);
+            await db.SaveChangesAsync();
+            await Agents.StartOrRestartAsync(box.Id, CancellationToken.None);
+
+            Report(true, $"Box {box.Code} added. It is empty: a technician fills it with a service visit.");
+            _code = _name = _site = _host = string.Empty;
+            await LoadAsync();
+        }
+        catch (ArgumentException exception)
+        {
+            Report(false, $"Check the fields: {exception.Message}");
+        }
+    }
+
+    private void Report(bool ok, string message)
+    {
+        _ok = ok;
+        _message = message;
+    }
+}

@@ -1,0 +1,151 @@
+@page "/reports"
+@rendermode InteractiveServer
+@using System.Globalization
+@using OxBox.Application.Reports
+@using OxBox.Infrastructure.Reports
+@inject ReportQueries Queries
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject SiteClock Clock
+
+<PageTitle>Reports · OxBox</PageTitle>
+
+<h1>Reports</h1>
+<p class="lead">Months and days are cut at midnight, local time (@Clock.Zone.Id).</p>
+
+<div class="row g-2 mb-4 align-items-end">
+    <div class="col-md-2">
+        <label class="form-label" for="r-month">Month</label>
+        <input id="r-month" type="month" class="form-control" value="@_month" @onchange="ChooseMonthAsync" />
+    </div>
+    <div class="col-md-2"><label class="form-label" for="r-from">or from</label><input id="r-from" type="date" class="form-control" @bind="_from" @bind:after="LoadAsync" /></div>
+    <div class="col-md-2"><label class="form-label" for="r-to">to</label><input id="r-to" type="date" class="form-control" @bind="_to" @bind:after="LoadAsync" /></div>
+    <div class="col-md-2">
+        <label class="form-label" for="r-box">Box</label>
+        <select id="r-box" class="form-select" @bind="_box" @bind:after="LoadAsync">
+            <option value="">All boxes</option>
+            @foreach (var box in _boxes) { <option value="@box">@box</option> }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label" for="r-cc">Cost centre</label>
+        <select id="r-cc" class="form-select" @bind="_costCentre" @bind:after="LoadAsync">
+            <option value="">All</option>
+            @foreach (var costCentre in _costCentres) { <option value="@costCentre">@costCentre</option> }
+        </select>
+    </div>
+</div>
+
+<section class="mb-5">
+    <h2 class="h5">Full cylinders dispensed, @Request.Period <small class="text-muted">(for invoicing)</small></h2>
+    <table class="table table-sm w-auto">
+        <thead><tr><th>Cost centre</th><th>Name</th><th class="text-end">Dispensed</th></tr></thead>
+        <tbody>
+            @foreach (var row in _dispensed)
+            {
+                <tr><td>@row.CostCentreCode</td><td>@row.CostCentreName</td><td class="text-end">@row.Dispensed</td></tr>
+            }
+        </tbody>
+        <tfoot><tr><th colspan="2">Total</th><th class="text-end">@_dispensed.Sum(r => r.Dispensed)</th></tr></tfoot>
+    </table>
+    <a class="btn btn-sm btn-primary" href="@($"export/dispensed.csv{Request.ToQueryString()}")" download>Export CSV</a>
+</section>
+
+<section class="mb-5">
+    <h2 class="h5">Empty cylinders collected, @Request.Period <small class="text-muted">(flag 8441)</small></h2>
+    <table class="table table-sm w-auto">
+        <thead><tr><th>Cost centre</th><th>Name</th><th class="text-end">Returned by users</th><th class="text-end">Taken for refilling</th></tr></thead>
+        <tbody>
+            @foreach (var row in _empties)
+            {
+                <tr><td>@row.CostCentreCode</td><td>@row.CostCentreName</td><td class="text-end">@row.Returned</td><td class="text-end">@row.TakenForRefill</td></tr>
+            }
+        </tbody>
+        <tfoot><tr><th colspan="2">Total</th><th class="text-end">@_empties.Sum(r => r.Returned)</th><th class="text-end">@_empties.Sum(r => r.TakenForRefill)</th></tr></tfoot>
+    </table>
+</section>
+
+<section>
+    <h2 class="h5">Where the cylinders are now</h2>
+    <p>Full cylinders on the hospital campus (flag 9201): <strong>@_counts.Sum(r => r.FullOnCampus)</strong>
+        <small class="text-muted">full, and in a box or at a department</small></p>
+    <table class="table table-sm w-auto">
+        <thead>
+            <tr>
+                <th>Cost centre</th><th class="text-end">At department (full / empty)</th><th class="text-end">In box (full / empty)</th>
+                <th class="text-end">With supplier</th><th class="text-end">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in _counts)
+            {
+                <tr>
+                    <td>@row.CostCentreCode <small class="text-muted">@row.CostCentreName</small></td>
+                    <td class="text-end">@row.FullAtCostCentre / @row.EmptyAtCostCentre</td>
+                    <td class="text-end">@row.FullInBox / @row.EmptyInBox</td>
+                    <td class="text-end">@row.WithSupplier</td>
+                    <td class="text-end">@row.Total</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>
+
+@code {
+    private UserScope _scope = null!;
+    private List<string> _boxes = [];
+    private List<string> _costCentres = [];
+    private string _month = string.Empty;
+    private DateOnly _from;
+    private DateOnly _to;
+    private string _box = string.Empty;
+    private string _costCentre = string.Empty;
+    private IReadOnlyList<DispensedRow> _dispensed = [];
+    private IReadOnlyList<EmptiesCollectedRow> _empties = [];
+    private IReadOnlyList<CylinderCountRow> _counts = [];
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    private ReportRequest Request => new(
+        ReportPeriod.Days(_from, _to < _from ? _from : _to), NullIfEmpty(_box), NullIfEmpty(_costCentre));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _scope = UserScope.From((await AuthenticationState).User);
+        await using (var db = await Contexts.CreateDbContextAsync())
+        {
+            _boxes = await db.Boxes.OrderBy(b => b.Code).Select(b => b.Code).ToListAsync();
+            _costCentres = [.. (await db.CostCentres.OrderBy(c => c.Code).Select(c => c.Code).ToListAsync()).Where(_scope.MaySee)];
+        }
+
+        SetMonth(Clock.Today.Year, Clock.Today.Month);
+        await LoadAsync();
+    }
+
+    private async Task ChooseMonthAsync(ChangeEventArgs change)
+    {
+        if (DateOnly.TryParseExact($"{change.Value}-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var first))
+        {
+            SetMonth(first.Year, first.Month);
+            await LoadAsync();
+        }
+    }
+
+    private void SetMonth(int year, int month)
+    {
+        var period = ReportPeriod.Month(year, month);
+        (_from, _to) = (period.From, period.ToInclusive);
+        _month = period.From.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+    }
+
+    private async Task LoadAsync()
+    {
+        var request = Request;
+        var filter = new ReportFilter(request.BoxCode, _scope.AllowedCostCentres, request.CostCentreCode);
+        _dispensed = await Queries.DispensedAsync(request.Period, filter, CancellationToken.None);
+        _empties = await Queries.EmptiesCollectedAsync(request.Period, filter, CancellationToken.None);
+        _counts = await Queries.CylinderCountsAsync(filter, CancellationToken.None);
+    }
+
+    private static string? NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value;
+}

@@ -1,0 +1,143 @@
+@page "/kiosk/{BoxCode}"
+@layout KioskLayout
+@* No server pre-render: the language saved on this display is only known in the browser. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@implements IDisposable
+@inject KioskScreens Screens
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject TimeProvider Time
+
+@if (!_languageKnown)
+{
+    @* Shown for a moment while the saved language is read, so no text appears in the wrong language. *@
+    <section class="kiosk kiosk-neutral" aria-busy="true"></section>
+}
+else
+{
+    <section class="kiosk kiosk-@_view.Tone.ToString().ToLowerInvariant()" lang="@_language.Code()" role="status" aria-live="polite">
+        <nav class="kiosk-languages" aria-label="Language / Jazyk">
+            @foreach (var language in Enum.GetValues<KioskLanguage>())
+            {
+                var isCurrent = language == _language;
+                <button type="button"
+                        class="@(isCurrent ? "current" : null)"
+                        aria-pressed="@(isCurrent ? "true" : "false")"
+                        lang="@language.Code()"
+                        @onclick="() => ChooseAsync(language)">
+                    @language.Label()
+                </button>
+            }
+        </nav>
+
+        @if (_view.Note is { } note)
+        {
+            <p class="kiosk-note">@note</p>
+        }
+
+        @if (_view.Slots.Count > 0)
+        {
+            <div class="kiosk-slots">
+                @foreach (var slot in _view.Slots)
+                {
+                    <div class="kiosk-slot">
+                        <span>@slot.Label</span>
+                        <strong>@slot.Number</strong>
+                    </div>
+                }
+            </div>
+        }
+
+        <h1>@_view.Title</h1>
+        <p>@_view.Body</p>
+    </section>
+}
+
+@code {
+    // Checks every second for brief screens (an exchange, errors) that have expired. The page is
+    // only redrawn when what it shows has actually changed.
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(1);
+
+    // The language last chosen on this display (kept in its browser storage), else the display's
+    // default from its URL. It stays as chosen until someone taps the other button.
+    private KioskLanguage _language;
+    private bool _languageKnown;
+    private KioskView _view = null!;
+    private ITimer? _refreshTimer;
+
+    [Parameter]
+    public string BoxCode { get; set; } = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _language = KioskLanguages.DefaultFromUrl(Navigation.Uri);
+        Screens.Changed += OnScreenChanged;
+        _refreshTimer = Time.CreateTimer(_ => _ = RefreshAsync(), null, RefreshInterval, RefreshInterval);
+    }
+
+    protected override void OnParametersSet() => UpdateView();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _language = KioskLanguages.FromCode(await LoadSavedLanguageAsync()) ?? _language;
+        _languageKnown = true;
+        UpdateView();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Screens.Changed -= OnScreenChanged;
+        _refreshTimer?.Dispose();
+    }
+
+    private async Task ChooseAsync(KioskLanguage language)
+    {
+        _language = language;
+        UpdateView();
+        await JS.InvokeVoidAsync("oxboxKiosk.saveLanguage", language.Code());
+    }
+
+    // A display that cannot read its storage simply uses its default language.
+    private async Task<string?> LoadSavedLanguageAsync()
+    {
+        try
+        {
+            return await JS.InvokeAsync<string?>("oxboxKiosk.loadLanguage");
+        }
+        catch (JSException)
+        {
+            return null;
+        }
+    }
+
+    private void OnScreenChanged(string boxCode)
+    {
+        if (string.Equals(boxCode, BoxCode, StringComparison.OrdinalIgnoreCase))
+        {
+            _ = RefreshAsync();
+        }
+    }
+
+    private Task RefreshAsync() => InvokeAsync(() =>
+    {
+        if (UpdateView())
+        {
+            StateHasChanged();
+        }
+    });
+
+    /// <returns>True if the view differs from what is shown.</returns>
+    private bool UpdateView()
+    {
+        var view = KioskView.For(Screens.Current(BoxCode), _language);
+        var changed = view != _view;
+        _view = view;
+        return changed;
+    }
+}

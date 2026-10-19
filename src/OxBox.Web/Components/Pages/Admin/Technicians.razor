@@ -1,0 +1,125 @@
+@page "/technicians"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = Roles.Admin)]
+@using OxBox.Domain.Technicians
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject TimeProvider Time
+
+<PageTitle>Technicians · OxBox</PageTitle>
+
+<h1>Technicians</h1>
+<p class="lead">
+    Technicians restock boxes. Each one has a personal service card: scanning its barcode at a box starts a service visit,
+    and scanning it again ends it. Every cylinder they move is recorded under their name.
+</p>
+
+<table class="table align-middle">
+    <thead><tr><th>Name</th><th>Service code</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+        @foreach (var technician in _technicians)
+        {
+            <tr class="@(technician.IsActive ? null : "text-muted")">
+                <td>@technician.Name</td>
+                <td><code>@technician.ServiceBarcode</code></td>
+                <td>@(technician.IsActive ? "Yes" : "No")</td>
+                <td>
+                    <button type="button" class="btn btn-sm @(technician.IsActive ? "btn-outline-danger" : "btn-outline-primary")" @onclick="() => ToggleActiveAsync(technician.Id)">
+                        @(technician.IsActive ? "Deactivate" : "Activate")
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<section class="card">
+    <div class="card-body">
+        <h2 class="h5">Add a technician</h2>
+        <p class="small text-muted">The service code is printed on the technician's card as a barcode. It must not match any cylinder's barcode.</p>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4"><label class="form-label" for="tech-name">Name</label><input id="tech-name" class="form-control" @bind="_newName" /></div>
+            <div class="col-md-3"><label class="form-label" for="tech-code">Service code</label><input id="tech-code" class="form-control" @bind="_newCode" placeholder="e.g. SERVIS-002" /></div>
+            <div class="col-md-2"><button type="button" class="btn btn-primary w-100" @onclick="AddAsync">Add</button></div>
+        </div>
+    </div>
+</section>
+
+@if (_message is { } message)
+{
+    <p class="alert @(_ok ? "alert-success" : "alert-danger") mt-3">@message</p>
+}
+
+@code {
+    private List<Technician> _technicians = [];
+    private string _newName = string.Empty;
+    private string _newCode = string.Empty;
+    private string? _message;
+    private bool _ok;
+    private string _userName = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userName = UserScope.From((await AuthenticationState).User).UserName;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await Contexts.CreateDbContextAsync();
+        _technicians = await db.Technicians.AsNoTracking().OrderBy(t => t.Name).ToListAsync();
+    }
+
+    private Task ToggleActiveAsync(int id) => ChangeAsync(id, "Changed a technician", technician =>
+    {
+        if (technician.IsActive)
+        {
+            technician.Deactivate();
+        }
+        else
+        {
+            technician.Activate();
+        }
+    });
+
+    private async Task ChangeAsync(int id, string action, Action<Technician> change)
+    {
+        await using var db = await Contexts.CreateDbContextAsync();
+        var technician = await db.Technicians.SingleAsync(t => t.Id == id);
+        change(technician);
+        await db.SaveChangesAsync();
+        _message = null;
+        await LoadAsync();
+    }
+
+    private async Task AddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newCode))
+        {
+            Report(false, "Enter a name and a service code.");
+            return;
+        }
+
+        var code = _newCode.Trim();
+        await using var db = await Contexts.CreateDbContextAsync();
+        if (await db.Technicians.AnyAsync(t => t.ServiceBarcode == code) || await db.Cylinders.AnyAsync(c => c.Barcode == code))
+        {
+            Report(false, $"{code} is already in use by a cylinder or another technician.");
+            return;
+        }
+
+        db.Technicians.Add(new Technician(_newName, code));
+        await db.SaveChangesAsync();
+        Report(true, $"{_newName.Trim()} added. Print {code} as a barcode on their service card.");
+        _newName = _newCode = string.Empty;
+        await LoadAsync();
+    }
+
+    private void Report(bool ok, string message)
+    {
+        _ok = ok;
+        _message = message;
+    }
+}

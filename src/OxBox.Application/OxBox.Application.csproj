@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Use cases and ports. Only Microsoft.Extensions abstractions; no EF Core, sockets or hosting. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OxBox.Domain\OxBox.Domain.csproj" />
+    <ProjectReference Include="..\OxBox.OxPointProtocol\OxBox.OxPointProtocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="OxBox.Application.Tests" />
+    <InternalsVisibleTo Include="OxBox.Integration.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,150 @@
+/* Status display inside the box: read from a distance, at a glance, possibly in sunlight.
+   Each situation has its own full-screen color; text is large and high-contrast. */
+
+:root {
+  --kiosk-neutral: #12355b;
+  --kiosk-success: #1b7a3d;
+  --kiosk-error: #b3261e;
+  --kiosk-offline: #4a4f57;
+  --kiosk-service: #4b3a8c;
+  --kiosk-text: #ffffff;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--kiosk-offline);
+}
+
+.kiosk-shell {
+  min-height: 100vh;
+}
+
+.kiosk {
+  box-sizing: border-box;
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2vh;
+  padding: 6vh 6vw;
+  color: var(--kiosk-text);
+  text-align: center;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  transition: background-color 0.25s;
+}
+
+.kiosk h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 4.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.kiosk p {
+  margin: 0;
+  max-width: 40ch;
+  font-size: clamp(1.25rem, 3.2vw, 2.4rem);
+  line-height: 1.35;
+}
+
+.kiosk-neutral { background: var(--kiosk-neutral); }
+.kiosk-success { background: var(--kiosk-success); }
+.kiosk-error { background: var(--kiosk-error); }
+.kiosk-offline { background: var(--kiosk-offline); }
+.kiosk-service { background: var(--kiosk-service); }
+
+/* The slots to go to are the most important thing on screen. */
+.kiosk-slots {
+  display: flex;
+  gap: 4vw;
+}
+
+.kiosk-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1vh 4vw 2vh;
+  border: 0.5vh solid currentColor;
+  border-radius: 2vh;
+}
+
+.kiosk-slot span {
+  font-size: clamp(1.25rem, 3vw, 2.2rem);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.kiosk-slot strong {
+  font-size: clamp(6rem, 22vw, 16rem);
+  line-height: 1;
+}
+
+/* Language buttons: big enough to hit with a gloved finger, the current one filled in. */
+.kiosk-languages {
+  position: absolute;
+  top: 3vh;
+  right: 3vw;
+  display: flex;
+  gap: 1vw;
+}
+
+.kiosk-languages button {
+  min-width: 72px;
+  min-height: 56px;
+  padding: 0 1.2rem;
+  border: 3px solid currentColor;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--kiosk-text);
+  font: 700 clamp(1.1rem, 2.4vw, 1.6rem) system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.kiosk-languages button.current {
+  background: var(--kiosk-text);
+  color: #12151b;
+}
+
+.kiosk-languages button:focus-visible {
+  outline: 4px solid var(--kiosk-text);
+  outline-offset: 3px;
+}
+
+/* Blazor toggles these classes on #components-reconnect-modal while the connection is lost. */
+.kiosk-reconnect {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.kiosk-reconnect.components-reconnect-show,
+.kiosk-reconnect.components-reconnect-failed,
+.kiosk-reconnect.components-reconnect-rejected {
+  display: flex;
+}
+
+/* Only the text in the display's current language is shown (see kiosk.js). */
+.kiosk-reconnect-text {
+  display: none;
+}
+
+.kiosk-reconnect[data-language="cs"] .kiosk-reconnect-text[lang="cs"],
+.kiosk-reconnect[data-language="en"] .kiosk-reconnect-text[lang="en"] {
+  display: block;
+}
+
+/* Service visits name the technician in a small line above the title. */
+.kiosk-note {
+  font-size: clamp(1rem, 2.2vw, 1.5rem) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+}

@@ -1,0 +1,203 @@
+@page "/users"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = Roles.Admin)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@using OxBox.Infrastructure.Identity
+@inject UserManager<ApplicationUser> UserManager
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject TimeProvider Time
+
+<PageTitle>Users · OxBox</PageTitle>
+
+<h1>Users</h1>
+<p class="lead">Administrators manage everything. Viewers see, read-only, the cylinders, transactions, alerts and reports of their own cost centres.</p>
+
+<table class="table align-middle">
+    <thead><tr><th>E-mail</th><th>Role</th><th>Cost centres</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+        @foreach (var user in _users)
+        {
+            <tr class="@(user.IsDisabled ? "text-muted" : null)">
+                <td>@user.Email</td>
+                <td>@user.Role</td>
+                <td>@(user.Role == Roles.Admin ? "All" : string.Join(", ", user.CostCentres))</td>
+                <td>@(user.IsDisabled ? "Disabled" : "Active")</td>
+                <td class="text-end">
+                    @if (user.Email != _me)
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => ToggleDisabledAsync(user.Id)">@(user.IsDisabled ? "Enable" : "Disable")</button>
+                    }
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => _resetFor = user.Id">Reset password</button>
+                </td>
+            </tr>
+            @if (_resetFor == user.Id)
+            {
+                <tr>
+                    <td colspan="5">
+                        <div class="d-flex gap-2 align-items-center">
+                            <label for="reset-password">New password for @user.Email</label>
+                            <input id="reset-password" type="password" class="form-control w-auto" @bind="_resetPassword" autocomplete="new-password" />
+                            <button type="button" class="btn btn-sm btn-primary" @onclick="() => ResetPasswordAsync(user.Id)">Set</button>
+                            <button type="button" class="btn btn-sm btn-link" @onclick="() => _resetFor = null">Cancel</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        }
+    </tbody>
+</table>
+
+<section class="card">
+    <div class="card-body">
+        <h2 class="h5">Add a user</h2>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3"><label class="form-label" for="u-email">E-mail</label><input id="u-email" type="email" class="form-control" @bind="_email" /></div>
+            <div class="col-md-2">
+                <label class="form-label" for="u-role">Role</label>
+                <select id="u-role" class="form-select" @bind="_role">
+                    <option value="@Roles.Viewer">Viewer (read-only)</option>
+                    <option value="@Roles.Admin">Administrator</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="u-cc">Cost centres <small class="text-muted">(viewers)</small></label>
+                <select id="u-cc" class="form-select" multiple size="3" @bind="_costCentres" disabled="@(_role == Roles.Admin)">
+                    @foreach (var costCentre in _allCostCentres) { <option value="@costCentre">@costCentre</option> }
+                </select>
+            </div>
+            <div class="col-md-2"><label class="form-label" for="u-password">First password</label><input id="u-password" type="password" class="form-control" @bind="_password" autocomplete="new-password" /></div>
+            <div class="col-md-2"><button type="button" class="btn btn-primary w-100" @onclick="AddAsync">Add</button></div>
+        </div>
+        <p class="small text-muted mt-2 mb-0">At least 6 characters with an upper-case letter, a lower-case letter, a digit and a symbol. Ask the user to change it after signing in.</p>
+    </div>
+</section>
+
+@if (_message is { } message)
+{
+    <p class="alert @(_ok ? "alert-success" : "alert-danger") mt-3">@message</p>
+}
+
+@code {
+    private List<UserRow> _users = [];
+    private List<string> _allCostCentres = [];
+    private string _me = string.Empty;
+    private string _email = string.Empty;
+    private string _role = Roles.Viewer;
+    private string[] _costCentres = [];
+    private string _password = string.Empty;
+    private string? _resetFor;
+    private string _resetPassword = string.Empty;
+    private string? _message;
+    private bool _ok;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _me = UserScope.From((await AuthenticationState).User).UserName;
+        await using (var db = await Contexts.CreateDbContextAsync())
+        {
+            _allCostCentres = await db.CostCentres.OrderBy(c => c.Code).Select(c => c.Code).ToListAsync();
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var rows = new List<UserRow>();
+        foreach (var user in await UserManager.Users.OrderBy(u => u.Email).ToListAsync())
+        {
+            var roles = await UserManager.GetRolesAsync(user);
+            var claims = await UserManager.GetClaimsAsync(user);
+            rows.Add(new UserRow(
+                user.Id,
+                user.Email ?? user.UserName ?? user.Id,
+                roles.Contains(Roles.Admin) ? Roles.Admin : Roles.Viewer,
+                [.. claims.Where(c => c.Type == Roles.CostCentreClaim).Select(c => c.Value)],
+                user.LockoutEnd > DateTimeOffset.UtcNow));
+        }
+
+        _users = rows;
+    }
+
+    private async Task AddAsync()
+    {
+        if (_role == Roles.Viewer && _costCentres.Length == 0)
+        {
+            Report(false, "Choose the cost centres this viewer may see.");
+            return;
+        }
+
+        var user = new ApplicationUser { UserName = _email.Trim(), Email = _email.Trim(), EmailConfirmed = true };
+        var result = await UserManager.CreateAsync(user, _password);
+        if (!result.Succeeded)
+        {
+            Report(false, string.Join(" ", result.Errors.Select(e => e.Description)));
+            return;
+        }
+
+        await UserManager.AddToRoleAsync(user, _role);
+        if (_role == Roles.Viewer)
+        {
+            await UserManager.AddClaimsAsync(user, _costCentres.Select(code => new Claim(Roles.CostCentreClaim, code)));
+        }
+
+        Report(true, $"{user.Email} can now sign in.");
+        (_email, _password, _costCentres) = (string.Empty, string.Empty, []);
+        await LoadAsync();
+    }
+
+    private async Task ToggleDisabledAsync(string id)
+    {
+        var user = await UserManager.FindByIdAsync(id);
+        if (user is null)
+        {
+            return;
+        }
+
+        var disable = !(user.LockoutEnd > DateTimeOffset.UtcNow);
+        if (disable && await UserManager.IsInRoleAsync(user, Roles.Admin)
+            && _users.Count(u => u.Role == Roles.Admin && !u.IsDisabled) <= 1)
+        {
+            Report(false, "This is the last active administrator; it cannot be disabled.");
+            return;
+        }
+
+        await UserManager.SetLockoutEnabledAsync(user, true);
+        await UserManager.SetLockoutEndDateAsync(user, disable ? DateTimeOffset.MaxValue : null);
+        await UserManager.UpdateSecurityStampAsync(user);
+        Report(true, disable ? $"{user.Email} can no longer sign in." : $"{user.Email} can sign in again.");
+        await LoadAsync();
+    }
+
+    private async Task ResetPasswordAsync(string id)
+    {
+        var user = await UserManager.FindByIdAsync(id);
+        if (user is null)
+        {
+            return;
+        }
+
+        var token = await UserManager.GeneratePasswordResetTokenAsync(user);
+        var result = await UserManager.ResetPasswordAsync(user, token, _resetPassword);
+        if (!result.Succeeded)
+        {
+            Report(false, string.Join(" ", result.Errors.Select(e => e.Description)));
+            return;
+        }
+
+        (_resetFor, _resetPassword) = (null, string.Empty);
+        Report(true, $"Password of {user.Email} changed.");
+    }
+
+    private void Report(bool ok, string message)
+    {
+        _ok = ok;
+        _message = message;
+    }
+
+    private sealed record UserRow(string Id, string Email, string Role, IReadOnlyList<string> CostCentres, bool IsDisabled);
+}

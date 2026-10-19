@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Stands in for an OX Point BU so the system can be run and demonstrated without hardware.
+       Speaks the real protocol on port 3030 and serves a control page on port 5080. Not deployed. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OxBox.OxPointProtocol\OxBox.OxPointProtocol.csproj" />
+  </ItemGroup>
+
+</Project>

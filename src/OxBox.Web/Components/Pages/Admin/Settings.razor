@@ -1,0 +1,76 @@
+@page "/settings"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = Roles.Admin)]
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject TimeProvider Time
+
+<PageTitle>Settings · OxBox</PageTitle>
+
+<h1>Settings</h1>
+
+<div class="card mb-4" style="max-width: 46rem">
+    <div class="card-body">
+        <h2 class="h5">Flags</h2>
+        <p class="small text-muted">
+            The cost centre number recorded with each movement. Full cylinders carry the hospital campus number,
+            empty ones the energy department's. A change applies to new movements only; history and reports keep working.
+        </p>
+        <div class="row g-2 mb-4">
+            <div class="col-md-4"><label class="form-label" for="s-full">Full cylinders</label><input id="s-full" type="number" class="form-control" @bind="_fullFlag" /></div>
+            <div class="col-md-4"><label class="form-label" for="s-empty">Empty cylinders</label><input id="s-empty" type="number" class="form-control" @bind="_emptyFlag" /></div>
+        </div>
+
+        <h2 class="h5">Low-stock alert</h2>
+        <p class="small text-muted">
+            Alert when a cost centre has this many full cylinders or fewer left in a box. A cost centre can set its own number.
+            The last cylinder and no cylinder at all are always alerted, whatever this number is.
+        </p>
+        <div class="row g-2 mb-4">
+            <div class="col-md-4"><label class="form-label" for="s-threshold">Full cylinders left</label><input id="s-threshold" type="number" min="0" class="form-control" @bind="_threshold" /></div>
+        </div>
+
+
+        <button type="button" class="btn btn-primary" @onclick="SaveAsync">Save</button>
+        @if (_message is { } message)
+        {
+            <p class="alert @(_ok ? "alert-success" : "alert-danger") mt-3 mb-0">@message</p>
+        }
+    </div>
+</div>
+
+@code {
+    private int _fullFlag;
+    private int _emptyFlag;
+    private int _threshold;
+    private string? _message;
+    private bool _ok;
+    private string _userName = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userName = UserScope.From((await AuthenticationState).User).UserName;
+        await using var db = await Contexts.CreateDbContextAsync();
+        var settings = await db.SystemSettings.AsNoTracking().SingleAsync();
+        (_fullFlag, _emptyFlag, _threshold) = (settings.FullFlag, settings.EmptyFlag, settings.LowStockThreshold);
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await using var db = await Contexts.CreateDbContextAsync();
+            var settings = await db.SystemSettings.SingleAsync();
+            settings.ChangeFlags(_fullFlag, _emptyFlag);
+            settings.ChangeLowStockThreshold(_threshold);
+            await db.SaveChangesAsync();
+            (_ok, _message) = (true, "Saved.");
+        }
+        catch (ArgumentException exception)
+        {
+            (_ok, _message) = (false, exception.Message);
+        }
+    }
+}

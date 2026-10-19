@@ -1,0 +1,239 @@
+@page "/cylinders"
+@rendermode InteractiveServer
+@inject IDbContextFactory<OxBoxDbContext> Contexts
+@inject TimeProvider Time
+
+<PageTitle>Cylinders · OxBox</PageTitle>
+
+<h1>Cylinders</h1>
+<p class="lead">Every cylinder has a permanent barcode and belongs to one cost centre. The system tracks whether it is full or empty, and where it is.</p>
+
+@if (_scope.IsAdmin)
+{
+    <section class="card mb-4">
+        <div class="card-body">
+            <h2 class="h5">Register cylinders</h2>
+            <p class="text-muted small mb-3">
+                A new cylinder starts at its department or with the supplier. It enters a box only when a technician scans it in during a service visit.
+            </p>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label" for="new-barcodes">Barcode(s)</label>
+                    <textarea id="new-barcodes" class="form-control" rows="2" placeholder="One per line, e.g. O2-INT-07" @bind="_newBarcodes"></textarea>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="new-cc">Cost centre</label>
+                    <select id="new-cc" class="form-select" @bind="_newCostCentreId">
+                        <option value="0">Choose…</option>
+                        @foreach (var costCentre in _costCentres.Where(c => c.IsActive))
+                        {
+                            <option value="@costCentre.Id">@costCentre.Code · @costCentre.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="new-start">Starts as</label>
+                    <select id="new-start" class="form-select" @bind="_newStart">
+                        <option value="FullAtCostCentre">Full, at its department</option>
+                        <option value="FullWithSupplier">Full, with the supplier (ready to restock)</option>
+                        <option value="EmptyWithSupplier">Empty, with the supplier</option>
+                        <option value="EmptyAtCostCentre">Empty, at its department</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-primary w-100" @onclick="RegisterAsync">Register</button>
+                </div>
+            </div>
+            @if (_registerMessage is { } message)
+            {
+                <p class="alert @(_registerOk ? "alert-success" : "alert-danger") mt-3 mb-0">@message</p>
+            }
+        </div>
+    </section>
+}
+
+<section aria-labelledby="list-title">
+    <h2 id="list-title" class="h5">All cylinders</h2>
+    <div class="row g-2 mb-3">
+        <div class="col-md-3">
+            <input class="form-control" placeholder="Search barcode" @bind="_search" @bind:event="oninput" @bind:after="LoadAsync" aria-label="Search barcode" />
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" @bind="_filterCostCentre" @bind:after="LoadAsync" aria-label="Cost centre">
+                <option value="">All cost centres</option>
+                @foreach (var costCentre in _costCentres.Where(c => _scope.MaySee(c.Code)))
+                {
+                    <option value="@costCentre.Code">@costCentre.Code · @costCentre.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" @bind="_filterLocation" @bind:after="LoadAsync" aria-label="Location">
+                <option value="">Anywhere</option>
+                @foreach (var location in Enum.GetValues<CylinderLocation>())
+                {
+                    <option value="@location">@LocationText(location)</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-center">
+            <div class="form-check">
+                <input id="show-inactive" type="checkbox" class="form-check-input" @bind="_showInactive" @bind:after="LoadAsync" />
+                <label class="form-check-label" for="show-inactive">Show deactivated</label>
+            </div>
+        </div>
+    </div>
+
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr><th>Barcode</th><th>Cost centre</th><th>Status</th><th>Where</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var row in _rows)
+            {
+                <tr class="@(row.Cylinder.IsActive ? null : "text-muted")">
+                    <td><a href="cylinders/@Uri.EscapeDataString(row.Cylinder.Barcode)">@row.Cylinder.Barcode</a></td>
+                    <td>@row.Cylinder.CostCentre.Code <small class="text-muted">@row.Cylinder.CostCentre.Name</small></td>
+                    <td>@(row.Cylinder.Status == CylinderStatus.Full ? "Full" : "Empty")</td>
+                    <td>@row.Where</td>
+                    <td>@(row.Cylinder.IsActive ? null : "Deactivated")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (_rows.Count == 0)
+    {
+        <p class="text-muted">No cylinders match.</p>
+    }
+    else if (_rows.Count == PageSize)
+    {
+        <p class="text-muted small">Showing the first @PageSize. Narrow the search to see others.</p>
+    }
+</section>
+
+@code {
+    private const int PageSize = 200;
+
+    private UserScope _scope = null!;
+    private List<CostCentre> _costCentres = [];
+    private List<CylinderRow> _rows = [];
+
+    private string _search = string.Empty;
+    private string _filterCostCentre = string.Empty;
+    private string _filterLocation = string.Empty;
+    private bool _showInactive;
+
+    private string _newBarcodes = string.Empty;
+    private int _newCostCentreId;
+    private string _newStart = "FullAtCostCentre";
+    private string? _registerMessage;
+    private bool _registerOk;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _scope = UserScope.From((await AuthenticationState).User);
+        await using var db = await Contexts.CreateDbContextAsync();
+        _costCentres = await db.CostCentres.AsNoTracking().OrderBy(c => c.Code).ToListAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await Contexts.CreateDbContextAsync();
+        var query = db.Cylinders.AsNoTracking().Include(c => c.CostCentre).AsQueryable();
+        if (_scope.AllowedCostCentres is { } allowed)
+        {
+            query = query.Where(c => allowed.Contains(c.CostCentre.Code));
+        }
+
+        if (!_showInactive)
+        {
+            query = query.Where(c => c.IsActive);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            var search = _search.Trim();
+            query = query.Where(c => c.Barcode.Contains(search));
+        }
+
+        if (!string.IsNullOrEmpty(_filterCostCentre))
+        {
+            query = query.Where(c => c.CostCentre.Code == _filterCostCentre);
+        }
+
+        if (Enum.TryParse<CylinderLocation>(_filterLocation, out var location))
+        {
+            query = query.Where(c => c.Location == location);
+        }
+
+        var cylinders = await query.OrderBy(c => c.Barcode).Take(PageSize).ToListAsync();
+        var positions = await db.Positions.AsNoTracking()
+            .Join(db.Boxes, p => p.BoxId, b => b.Id, (p, b) => new { p.Id, p.Number, b.Code })
+            .ToDictionaryAsync(p => p.Id, p => $"{p.Code}, slot {p.Number}");
+
+        _rows = [.. cylinders.Select(c => new CylinderRow(c, c.Location == CylinderLocation.InBox && c.PositionId is { } id
+            ? $"In box {positions.GetValueOrDefault(id)}"
+            : LocationText(c.Location)))];
+    }
+
+    private async Task RegisterAsync()
+    {
+        var barcodes = _newBarcodes.Split(['\n', '\r', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (barcodes.Count == 0 || _newCostCentreId == 0)
+        {
+            Report(false, "Enter at least one barcode and choose a cost centre.");
+            return;
+        }
+
+        await using var db = await Contexts.CreateDbContextAsync();
+        var taken = await db.Cylinders.Where(c => barcodes.Contains(c.Barcode)).Select(c => c.Barcode)
+            .Concat(db.Technicians.Where(t => barcodes.Contains(t.ServiceBarcode)).Select(t => t.ServiceBarcode))
+            .ToListAsync();
+        if (taken.Count > 0)
+        {
+            Report(false, $"Already in use, nothing was registered: {string.Join(", ", taken)}. A barcode can belong to one cylinder or one technician's service card only.");
+            return;
+        }
+
+        var costCentre = await db.CostCentres.SingleAsync(c => c.Id == _newCostCentreId);
+        var (status, location) = _newStart switch
+        {
+            "FullWithSupplier" => (CylinderStatus.Full, CylinderLocation.WithSupplier),
+            "EmptyWithSupplier" => (CylinderStatus.Empty, CylinderLocation.WithSupplier),
+            "EmptyAtCostCentre" => (CylinderStatus.Empty, CylinderLocation.AtCostCentre),
+            _ => (CylinderStatus.Full, CylinderLocation.AtCostCentre),
+        };
+
+        foreach (var barcode in barcodes)
+        {
+            db.Cylinders.Add(new Cylinder(barcode, costCentre, status, location));
+        }
+
+        await db.SaveChangesAsync();
+
+        _newBarcodes = string.Empty;
+        Report(true, barcodes.Count == 1 ? $"Cylinder {barcodes[0]} registered." : $"{barcodes.Count} cylinders registered.");
+        await LoadAsync();
+    }
+
+    private void Report(bool ok, string message)
+    {
+        _registerOk = ok;
+        _registerMessage = message;
+    }
+
+    public static string LocationText(CylinderLocation location) => location switch
+    {
+        CylinderLocation.InBox => "In a box",
+        CylinderLocation.AtCostCentre => "At its department",
+        _ => "With the supplier",
+    };
+
+    private sealed record CylinderRow(Cylinder Cylinder, string Where);
+}
