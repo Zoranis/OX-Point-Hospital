@@ -30,7 +30,7 @@ one queue and is handled one at a time, so two scans can never race each other.
 
 ## Tests
 
-```bash
+```powershell
 dotnet test                                    # everything; needs Docker running
 dotnet test --filter "Category!=Integration"   # no Docker needed
 ```

@@ -12,7 +12,18 @@ web page where you "scan" barcodes, so you can test everything on one PC.
 - [docs/scope.md](docs/scope.md): which feature meets which requirement, and what was left out
 - [docs/development.md](docs/development.md): code structure, tests and coding standards
 
+## Before you start: use Windows, not WSL
+
+These instructions are for **Windows 10 or 11**. Run every command in **PowerShell** or
+**Command Prompt** (Start menu → type "PowerShell"; Windows Terminal works too).
+
+Do **not** use a WSL or Ubuntu terminal. Linux there has its own `docker` and `dotnet`, which do not
+use the Windows ones you install below, so `docker` fails with "failed to connect to the docker
+API at unix:///var/run/docker.sock".
+
 ## 1. Install the prerequisites (once)
+
+Install these on Windows:
 
 | Tool | Why | Get it |
 |---|---|---|
@@ -20,15 +31,18 @@ web page where you "scan" barcodes, so you can test everything on one PC.
 | Docker Desktop | Runs the PostgreSQL database in a container, so nothing else needs installing | https://www.docker.com/products/docker-desktop/ |
 | Git | Downloads the code | https://git-scm.com/downloads |
 
-To check that they work, run `dotnet --version` (should print 9.0.300 or higher) and
-`docker --version` in a terminal. Start Docker Desktop and leave it running.
+To check that they work, open a new PowerShell window (so it sees the newly installed tools) and
+run `dotnet --version`, which should print 9.0.300 or higher.
+Then start Docker Desktop, leave it running, and run `docker info`: it should print a long report
+with no error at the end. (`docker --version` is not enough; it works even when Docker is not
+running.)
 
 ## 2. Get the code
 
-```bash
+```powershell
 git clone https://github.com/Zoranis/OX-Point-Hospital oxbox-poc
 ```
-```bash
+```powershell
 cd oxbox-poc
 ```
 
@@ -36,11 +50,12 @@ Run every command below from this folder.
 
 ## 3. Start the system
 
-You need **three terminal windows**. Commands 2 and 3 keep running; leave their windows open.
+You need **three PowerShell windows**, each in the `oxbox-poc` folder. Commands 2 and 3 keep
+running; leave their windows open.
 
 **Window 1: the database.** This downloads PostgreSQL the first time, then starts it on port 5433:
 
-```bash
+```powershell
 docker run -d --name oxbox-db -e POSTGRES_PASSWORD=postgres -p 5433:5432 postgres:16-alpine
 ```
 
@@ -48,7 +63,7 @@ Next time, the container already exists, so start it with `docker start oxbox-db
 
 **Window 2: the box simulator.** Wait until it prints `Now listening on: http://localhost:5080`.
 
-```bash
+```powershell
 dotnet run --project tools/OxBox.BuSimulator
 ```
 
@@ -58,7 +73,7 @@ database, a box with 30 positions and demo data. Wait until it prints
 start it logs one red `fail` line saying the database could not be reached; that is only the check
 before the database is created, and you can ignore it.
 
-```bash
+```powershell
 dotnet run --project src/OxBox.Web --launch-profile http
 ```
 
@@ -121,7 +136,7 @@ click one to close it.
 - **Start over with fresh demo data:** with the server stopped, delete the database and start the
   server again; it recreates everything.
 
-  ```bash
+  ```powershell
   docker exec oxbox-db psql -U postgres -c "DROP DATABASE oxbox_poc"
   ```
 
@@ -130,7 +145,8 @@ click one to close it.
 | Problem | Fix |
 |---|---|
 | `docker: ... Conflict. The container name "/oxbox-db" is already in use` | The container exists already: `docker start oxbox-db`. |
-| `error during connect` or similar from Docker | Docker Desktop is not running. Start it and wait until it says it is running. |
+| `failed to connect to the docker API at unix:///var/run/docker.sock` | You are in a WSL (Linux) terminal. Open PowerShell or Command Prompt instead, go to the `oxbox-poc` folder, and run the command again. |
+| `failed to connect to the docker API at npipe:...` or `error during connect` | Docker Desktop is not running. Start it from the Start menu, wait until it says "Engine running", then check with `docker info`. |
 | The server stops with a database connection error | The database is not running: `docker start oxbox-db`. Check with `docker ps`. |
 | `address already in use` for port 5029, 5080, 3030 or 5433 | Another program uses that port, maybe a second copy of the server or simulator. Close it. |
 | The box display says the box is offline | Start the simulator; the server reconnects to it within a few seconds. |
@@ -141,7 +157,7 @@ appear in the web app and their e-mails wait in an outbox; the server's window t
 warnings that an e-mail failed and will be retried, which you can ignore. To see the e-mails, run
 a test mail server and open its inbox at http://localhost:3000:
 
-```bash
+```powershell
 docker run -d --name oxbox-smtp -p 2525:25 -p 3000:80 rnwood/smtp4dev
 ```
 
@@ -149,7 +165,7 @@ SMS are only written to the server's log until an SMS provider is chosen.
 
 ## Run the automated tests
 
-```bash
+```powershell
 dotnet test
 ```
 
