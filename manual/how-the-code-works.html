@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How OxBox Works</title>
+<style>
+  :root {
+    --bg: #fbfaf7; --surface: #ffffff; --ink: #1d232b; --muted: #5b6672; --line: #c4ccd5;
+    --accent: #0b63bd; --accent-soft: #e4effa;
+    --err: #b42318; --err-soft: #fdecea; --warn: #9a5800; --warn-soft: #fcf0dc;
+    --code-bg: #f0eee9;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12161b; --surface: #1a2027; --ink: #e6eaee; --muted: #9aa5b1; --line: #3d4752;
+      --accent: #63adf2; --accent-soft: #15304b;
+      --err: #f07167; --err-soft: #3b1d1b; --warn: #efb25a; --warn-soft: #382a13;
+      --code-bg: #222931;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12161b; --surface: #1a2027; --ink: #e6eaee; --muted: #9aa5b1; --line: #3d4752;
+    --accent: #63adf2; --accent-soft: #15304b;
+    --err: #f07167; --err-soft: #3b1d1b; --warn: #efb25a; --warn-soft: #382a13;
+    --code-bg: #222931;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 var(--sans);
+  }
+  main { max-width: 1060px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
+  h2 { font-size: 1.4rem; margin: 48px 0 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.1rem; margin: 28px 0 6px; }
+  p, li { max-width: 72ch; }
+  a { color: var(--accent); }
+  code { font: 0.9em var(--mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  .lead { color: var(--muted); font-size: 1.1rem; margin-top: 0; }
+
+  nav ol { columns: 2; column-gap: 32px; padding-left: 20px; max-width: 640px; }
+  @media (max-width: 600px) { nav ol { columns: 1; } }
+
+  table { border-collapse: collapse; margin: 12px 0; width: 100%; max-width: 860px; font-size: 0.95rem; }
+  th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  .table-wrap { overflow-x: auto; }
+
+  figure { margin: 20px 0 28px; }
+  .canvas {
+    overflow-x: auto; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px;
+  }
+  .canvas svg { display: block; width: 100%; height: auto; min-width: 680px; }
+  figcaption { color: var(--muted); font-size: 0.92rem; margin-top: 8px; max-width: 80ch; }
+
+  /* Diagram vocabulary, shared by every figure. */
+  svg text { font-family: var(--sans); font-size: 13px; fill: var(--ink); }
+  svg .b { font-weight: 600; }
+  svg .s { font-size: 11.5px; fill: var(--muted); }
+  svg .m { font-family: var(--mono); font-size: 11.5px; }
+  svg .ta { fill: var(--accent); }
+  svg .mid { text-anchor: middle; }
+  svg .end { text-anchor: end; }
+  svg .halo { paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+  svg .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+  svg .acc { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  svg .err { fill: var(--err-soft); stroke: var(--err); stroke-width: 1.2; }
+  svg .warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.2; }
+  svg .zone { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 6 5; }
+  svg .l { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+  svg .la { stroke: var(--accent); }
+  svg .le { stroke: var(--err); }
+  svg .dash { stroke-dasharray: 5 4; }
+  svg .life { fill: none; stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 4 4; }
+  svg .hi { fill: var(--ink); }
+  svg .ha { fill: var(--accent); }
+  svg .he { fill: var(--err); }
+
+  svg text.tip { cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; outline: none; }
+  svg text.tip:hover, svg text.tip:focus { fill: var(--accent); }
+  .tooltip {
+    position: absolute; z-index: 10; max-width: min(340px, calc(100vw - 32px));
+    background: var(--ink); color: var(--bg); padding: 9px 12px; border-radius: 7px;
+    font-size: 0.86rem; line-height: 1.45; box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+    pointer-events: none; opacity: 0; transition: opacity 0.12s;
+  }
+  .tooltip.show { opacity: 1; }
+
+  .note { border-left: 3px solid var(--accent); padding: 4px 14px; background: var(--accent-soft); border-radius: 0 6px 6px 0; max-width: 80ch; }
+  footer { margin-top: 56px; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>How OxBox works</h1>
+<p class="lead">A guided tour of the proof-of-concept code: what runs where, what happens when someone scans a
+cylinder, and where each rule lives. Read it top to bottom once; after that, use the diagrams to find your way. In every diagram, hover over (or tap)
+dotted-underlined text for an explanation.</p>
+
+<nav>
+  <ol>
+    <li><a href="#system">The system at a glance</a></li>
+    <li><a href="#projects">The five projects</a></li>
+    <li><a href="#agent">One agent per box</a></li>
+    <li><a href="#routing">What a scan turns into</a></li>
+    <li><a href="#exchange">The exchange, step by step</a></li>
+    <li><a href="#bu">Talking to the BU</a></li>
+    <li><a href="#cylinder">A cylinder's life</a></li>
+    <li><a href="#service">Service visits</a></li>
+    <li><a href="#alerts">Stock alerts and the outbox</a></li>
+    <li><a href="#kiosk">The box display</a></li>
+    <li><a href="#webapp">The admin web app</a></li>
+    <li><a href="#start">Where to start reading</a></li>
+  </ol>
+</nav>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="system">1. The system at a glance</h2>
+<p>OxBox is one ASP.NET Core server. It drives the box's hardware, shows the box's screen, serves the admin
+web app and sends alerts, all from the same process. The box itself contains an <strong>OX Point BU</strong>, a
+control unit with the barcode reader, the locks and the lamps. The BU is a WebSocket <em>server</em>, and
+OxBox connects to it as a client.</p>
+
+<figure>
+  <div class="canvas">
+  <svg viewBox="0 0 960 420" role="img" aria-label="The OxBox server sits between the box's BU, the database and the browsers. Box agents send lock commands to the BU and receive scans; the kiosk page pushes screens to the box display; the admin app and the agents both use the SQLite database; the outbox dispatcher sends e-mail through SMTP.">
+    <defs>
+      <marker id="f1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="hi"/></marker>
+    </defs>
+    <rect x="12" y="24" width="228" height="300" rx="10" class="zone"/>
+    <text x="24" y="44" class="s">At the box</text>
+    <rect x="30" y="60" width="190" height="84" rx="8" class="box"/>
+    <text x="125" y="86" class="b mid tip" tabindex="0" data-tip="The control unit inside the box, made by OX Point. It reads barcodes, opens the door locks and switches the lamps, but makes no decisions: it does what the OxBox server tells it.">OX Point BU</text>
+    <text x="125" y="106" class="s mid tip" tabindex="0" data-tip="The hardware the BU drives: one barcode reader for everyone, one lock per slot (30 in the demo box), and a green and a red lamp (with buzzer) for instant feedback.">reader, locks, lamps</text>
+    <text x="125" y="126" class="m mid tip" tabindex="0" data-tip="The BU waits for connections on port 3030. A WebSocket is a permanent two-way network channel, so the BU can send a scan the moment it happens and the server can send commands at any time.">WebSocket server :3030</text>
+    <rect x="30" y="190" width="190" height="70" rx="8" class="box"/>
+    <text x="125" y="216" class="b mid tip" tabindex="0" data-tip="A small screen inside the box that tells the person what happened and what to do next, such as &quot;put the empty cylinder in slot 8&quot;. It shows information only; nobody types on it.">Box display</text>
+    <text x="125" y="236" class="s mid tip" tabindex="0" data-tip="The display is just a web browser showing the kiosk page of its box. BOX-01 is the code of the demo box.">a browser at /kiosk/BOX-01</text>
+    <text x="12" y="348" class="s tip" tabindex="0" data-tip="PoC = proof of concept. Instead of real hardware, tools/OxBox.BuSimulator pretends to be the BU. Its control page at http://localhost:5080 lets you &quot;scan&quot; barcodes and close doors.">In the PoC the simulator (:5080)</text>
+    <text x="12" y="364" class="s">plays the BU, and a browser tab</text>
+    <text x="12" y="380" class="s">plays the display.</text>
+
+    <rect x="330" y="24" width="290" height="384" rx="10" class="zone"/>
+    <text x="342" y="44" class="s tip" tabindex="0" data-tip="One program (one process) that does everything below. It listens on port 5029: open http://localhost:5029 for the admin web app.">OxBox server · src/OxBox.Web · :5029</text>
+    <rect x="350" y="60" width="250" height="84" rx="8" class="acc"/>
+    <text x="475" y="86" class="b mid tip" tabindex="0" data-tip="Background workers inside the server, one per box. Each keeps the connection to its box and handles that box's scans one at a time (section 3).">Box agents</text>
+    <text x="475" y="106" class="s mid tip" tabindex="0" data-tip="BoxAgent is the class; BoxSupervisor starts one for every box in the database when the server starts.">one BoxAgent per box</text>
+    <text x="475" y="126" class="s mid tip" tabindex="0" data-tip="When a scan is valid, the agent tells the BU which locks to open, then records in the database which cylinder went in or out.">opens locks, records movements</text>
+    <rect x="350" y="190" width="250" height="70" rx="8" class="box"/>
+    <text x="475" y="216" class="b mid tip" tabindex="0" data-tip="The web page shown on the box display (/kiosk/{box code}). It always shows the latest screen its box agent chose (section 10).">Kiosk page</text>
+    <text x="475" y="236" class="s mid tip" tabindex="0" data-tip="Blazor Server is Microsoft's way of building web pages in C#. The page keeps a live connection to the server, so it changes the moment the box agent shows a new screen, without reloading.">Blazor Server, updates live</text>
+    <rect x="350" y="280" width="250" height="52" rx="8" class="box"/>
+    <text x="475" y="302" class="b mid tip" tabindex="0" data-tip="The website for hospital staff: sign in, see the box and stock, register cylinders, manage alert recipients and export reports (section 11).">Admin web app</text>
+    <text x="475" y="320" class="s mid tip" tabindex="0" data-tip="Some of its pages. Dashboard: every slot and the stock per department. Cylinders: register, deactivate, view history. Reports: cylinders dispensed per department, with CSV export.">dashboard, cylinders, reports</text>
+    <rect x="350" y="348" width="250" height="48" rx="8" class="box"/>
+    <text x="475" y="368" class="b mid tip" tabindex="0" data-tip="A background job that sends the alert e-mails and SMS waiting in the database's outbox table, retrying the ones that fail (section 9).">Outbox dispatcher</text>
+    <text x="475" y="385" class="s mid tip" tabindex="0" data-tip="Alerts warn maintenance that a department is running out of full cylinders. In the PoC, SMS are only written to the server log.">sends alert e-mail and SMS</text>
+
+    <rect x="700" y="60" width="240" height="84" rx="8" class="box"/>
+    <text x="820" y="86" class="b mid tip" tabindex="0" data-tip="The database. It stores cylinders, boxes, departments, every movement (transaction), alerts, the outbox and user accounts.">SQLite</text>
+    <text x="820" y="106" class="s mid tip" tabindex="0" data-tip="Transactions are the movement records: every cylinder returned or dispensed, with time, box, slot and flag. They are the basis for invoicing.">cylinders, transactions, alerts</text>
+    <text x="820" y="126" class="m mid tip" tabindex="0" data-tip="SQLite is built into the server: the whole database is one file next to it, so nothing has to be installed.">data/oxbox_poc.db</text>
+    <rect x="700" y="280" width="240" height="52" rx="8" class="box"/>
+    <text x="820" y="302" class="b mid tip" tabindex="0" data-tip="Any web browser used by hospital staff to open the admin web app.">Admin's browser</text>
+    <text x="820" y="320" class="s mid">http://localhost:5029</text>
+    <rect x="700" y="348" width="240" height="48" rx="8" class="box"/>
+    <text x="820" y="368" class="b mid tip" tabindex="0" data-tip="The SMTP server the alert e-mails go to. Without one, alerts still appear in the web app and their e-mails wait in the outbox.">Mail server :2525</text>
+    <text x="820" y="385" class="s mid tip" tabindex="0" data-tip="smtp4dev is a test mail server: it accepts e-mails and shows them in a web inbox instead of delivering them. See the README for the command.">optional, e.g. smtp4dev</text>
+
+    <path d="M350 88H222" class="l" marker-end="url(#f1a)"/>
+    <text x="290" y="80" class="s mid tip" tabindex="0" data-tip="What the server tells the BU to do, for example Open (open one lock) and OpenRelay (pulse a lamp relay).">commands</text>
+    <path d="M220 118H348" class="l" marker-end="url(#f1a)"/>
+    <text x="285" y="136" class="s mid tip" tabindex="0" data-tip="What the BU sends back: barcodes read by its reader, and replies to commands such as &quot;lock 8 opened OK&quot;.">scans, replies</text>
+    <path d="M475 144V188" class="l" marker-end="url(#f1a)"/>
+    <text x="485" y="171" class="s tip" tabindex="0" data-tip="The agent never writes text; it only says which screen to show (for example &quot;exchange: slots 8 and 1&quot;). The kiosk page turns that into words.">screen to show</text>
+    <path d="M350 225H222" class="l" marker-end="url(#f1a)"/>
+    <text x="285" y="217" class="s mid tip" tabindex="0" data-tip="The kiosk page pushes every change to the browser over its live connection (SignalR), so the display updates within a moment.">live updates</text>
+    <path d="M600 100H698" class="l" marker-end="url(#f1a)"/>
+    <text x="650" y="92" class="s mid tip" tabindex="0" data-tip="The agents load what is in the box and save every movement and alert.">read, write</text>
+    <path d="M600 290H660V122H698" class="l" marker-end="url(#f1a)"/>
+    <text x="666" y="215" class="s tip" tabindex="0" data-tip="The admin pages read the database directly, for lists, history and reports, and write when staff change data such as cylinders or settings.">queries</text>
+    <path d="M700 316H602" class="l" marker-end="url(#f1a)"/>
+    <path d="M600 372H698" class="l" marker-end="url(#f1a)"/>
+    <text x="650" y="364" class="s mid tip" tabindex="0" data-tip="Simple Mail Transfer Protocol: the standard way to hand an e-mail to a mail server.">SMTP</text>
+  </svg>
+  </div>
+  <figcaption>The server's own parts: box agents talk to the hardware, the kiosk page and the admin app talk to
+  browsers, and the outbox dispatcher talks to the mail server. Only the agents and the admin app write to the
+  database. The dispatcher reads its queue from there as well (section 9).</figcaption>
+</figure>
+
+<p>Startup is in <a href="../src/OxBox.Web/Program.cs"><code>Program.cs</code></a>: it registers the layers,
+then creates or migrates the database, seeds demo accounts and data, and starts two background services, the
+<code>BoxSupervisor</code> and the <code>OutboxDispatcher</code>.</p>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="projects">2. The five projects</h2>
+<p>The solution is split by what each part may know. The protocol knows only JSON. The domain knows only
+cylinders and boxes. The application knows the business processes but not how the hardware or the database is
+reached. Infrastructure and Web supply those.</p>
+
+<figure>
+  <div class="canvas">
+  <svg viewBox="0 0 960 255" role="img" aria-label="Five projects in a row, each referencing only the ones to its right: Web, Infrastructure, Application, Domain, OxPointProtocol. Application defines the IBoxGateway, IBoxStore and IKioskDisplay interfaces; Infrastructure and Web implement them.">
+    <defs>
+      <marker id="f2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="hi"/></marker>
+      <marker id="f2b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ha"/></marker>
+    </defs>
+    <text x="16" y="26" class="s">Each project references only the projects to its right.</text>
+
+    <rect x="16" y="40" width="160" height="110" rx="8" class="box"/>
+    <text x="96" y="66" class="m b mid tip" tabindex="0" data-tip="src/OxBox.Web. The outermost project: the program you start with dotnet run. It contains the web pages and connects all the other projects together.">OxBox.Web</text>
+    <text x="96" y="90" class="s mid tip" tabindex="0" data-tip="Host: the running web server process (ASP.NET Core is Microsoft's web framework). Everything else (box agents, alert sending, web pages) runs inside this one process.">ASP.NET Core host</text>
+    <text x="96" y="108" class="s mid tip" tabindex="0" data-tip="The two user interfaces. Kiosk page: the screen inside the box that tells the person at the box what to do (/kiosk/BOX-01). Admin app: the website where hospital staff manage cylinders, see alerts and export reports.">kiosk page, admin app</text>
+    <text x="96" y="126" class="s mid tip" tabindex="0" data-tip="At startup, Program.cs registers every class in the dependency-injection container. Each class then automatically receives what it needs (database, BU connection, clock) instead of creating it itself. This place is called the composition root.">wires everything up</text>
+
+    <rect x="208" y="40" width="160" height="110" rx="8" class="box"/>
+    <text x="288" y="66" class="m b mid tip" tabindex="0" data-tip="src/OxBox.Infrastructure. Everything that talks to the outside world: the database, the box hardware and the mail server. It implements the interfaces that Application defines.">.Infrastructure</text>
+    <text x="288" y="90" class="s mid tip" tabindex="0" data-tip="Storing data. SQLite is the database, a single file. EF Core (Entity Framework Core) is the library that turns C# objects such as Cylinder into database rows and back, so the code rarely writes SQL by hand.">SQLite (EF Core)</text>
+    <text x="288" y="108" class="s mid tip" tabindex="0" data-tip="The BU is the control unit inside the box: barcode reader, door locks and lamps. The server keeps a permanent WebSocket connection (a two-way network channel) to it, sends commands such as &quot;open lock 8&quot; and receives scans. Class: BuConnection.">WebSocket to the BU</text>
+    <text x="288" y="126" class="s mid tip" tabindex="0" data-tip="Outbox: a database table of alert e-mails and SMS waiting to be sent. A background job sends them and retries failures, so no alert is lost if the mail server is down. Reports: the database queries and CSV downloads behind the Reports page.">outbox, e-mail, reports</text>
+
+    <rect x="400" y="40" width="160" height="110" rx="8" class="acc"/>
+    <text x="480" y="66" class="m b mid tip" tabindex="0" data-tip="src/OxBox.Application. The business processes: what happens, step by step, when someone scans at the box. It decides what to do but does not know how the database or hardware is reached.">.Application</text>
+    <text x="480" y="88" class="s mid tip" tabindex="0" data-tip="Exchange: the main process. A department scans its empty cylinder, the box takes it back and hands out a full one of the same department. Class: ExchangeWorkflow (section 5).">exchange: empty for full</text>
+    <text x="480" y="104" class="s mid tip" tabindex="0" data-tip="Service: a technician's restocking visit. They scan their service code, take the empty cylinders out for refilling and put refilled ones in. Class: ServiceWorkflow (section 8).">service: restocking</text>
+    <text x="480" y="120" class="s mid tip" tabindex="0" data-tip="Warnings to maintenance when a department has few, one or no full cylinders left in the box. Classes: StockAlertEvaluator, BoxAlerts (section 9).">stock alerts</text>
+    <text x="480" y="136" class="s mid tip" tabindex="0" data-tip="BoxAgent: one per box; it handles that box's scans strictly one at a time (section 3). Interfaces: contracts such as IBoxGateway (&quot;something that can open a lock&quot;). Application defines them and Infrastructure implements them, so the business logic never depends on a particular database or device.">BoxAgent, interfaces</text>
+
+    <rect x="592" y="40" width="160" height="110" rx="8" class="box"/>
+    <text x="672" y="66" class="m b mid tip" tabindex="0" data-tip="src/OxBox.Domain. The things the business is about, written as C# classes, with the rules that are always true for them. No database, network or screen code.">.Domain</text>
+    <text x="672" y="90" class="s mid tip" tabindex="0" data-tip="Cylinder: one oxygen cylinder, known by its barcode. Box: one exchange box. Position: one numbered slot (a door with its own lock) in a box.">Cylinder, Box, Position</text>
+    <text x="672" y="108" class="s mid tip" tabindex="0" data-tip="CostCentre: a hospital department. It owns cylinders and is invoiced for the full ones it takes. Alert: a stock warning, active until the stock is back up.">Alert, CostCentre</text>
+    <text x="672" y="126" class="s mid tip" tabindex="0" data-tip="Allowed moves: rules such as &quot;only a full cylinder in a box can be handed out&quot;. Breaking one is a bug and throws an error. History (audit): every change of a cylinder's status also writes a record of what changed and when, so a cylinder's full history can be shown (section 7).">allowed moves, history</text>
+
+    <rect x="784" y="40" width="160" height="110" rx="8" class="box"/>
+    <text x="864" y="66" class="m b mid tip" tabindex="0" data-tip="src/OxBox.OxPointProtocol. The language spoken with the box's control unit (the BU), and nothing else. The simulator uses it too.">.OxPointProtocol</text>
+    <text x="864" y="90" class="s mid tip" tabindex="0" data-tip="OX Point is the BU manufacturer's protocol. Each message is a small JSON text; for example {&quot;Open&quot;:[1,8]} means &quot;open lock 8 on board 1&quot;.">OX Point JSON</text>
+    <text x="864" y="108" class="s mid tip" tabindex="0" data-tip="Commands go from the server to the BU: open a lock, pulse a lamp. Messages come back from the BU: a scanned barcode, &quot;lock opened OK&quot;, door notifications.">commands, messages</text>
+    <text x="864" y="126" class="s mid tip" tabindex="0" data-tip="I/O means input/output: network, files, database. This project only converts between C# objects and JSON text; it never sends or receives anything itself (&quot;pure&quot;). That makes it easy to test, and the simulator can reuse it.">pure, no I/O</text>
+
+    <path d="M176 95H206" class="l" marker-end="url(#f2a)"/>
+    <path d="M368 95H398" class="l" marker-end="url(#f2a)"/>
+    <path d="M560 95H590" class="l" marker-end="url(#f2a)"/>
+    <path d="M752 95H782" class="l" marker-end="url(#f2a)"/>
+
+    <rect x="335" y="180" width="290" height="30" rx="6" class="acc"/>
+    <text x="480" y="199" class="m mid tip" tabindex="0" data-tip="The three interfaces the business logic uses. IBoxGateway: send a command to the box and receive its events. IBoxStore: load and save cylinders, transactions and alerts. IKioskDisplay: show a screen on the box display.">IBoxGateway · IBoxStore · IKioskDisplay</text>
+    <text x="633" y="199" class="s">defined in Application</text>
+    <path d="M288 150V195H333" class="l la dash" marker-end="url(#f2b)"/>
+    <text x="296" y="172" class="s ta">BuConnection, EfBoxStore implement</text>
+    <path d="M96 150V235H480V212" class="l la dash" marker-end="url(#f2b)"/>
+    <text x="104" y="228" class="s ta">KioskScreens implements IKioskDisplay</text>
+  </svg>
+  </div>
+  <figcaption>The application layer never touches a socket or a SQL connection. It calls three interfaces it
+  defines itself, and the outer projects plug in the real implementations (blue, dashed). This is why the
+  workflows can be tested with fakes. Hover over (or tap) any dotted-underlined text for an explanation.</figcaption>
+</figure>
+
+<p>The build enforces this: Domain and Application reference no infrastructure packages, warnings are errors,
+and the coding standards in <a href="../docs/development.md"><code>docs/development.md</code></a> apply
+everywhere.</p>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="agent">3. One agent per box</h2>
+<p><code>BoxSupervisor</code> (Infrastructure) is a background service. At startup it loads every box from the
+database, retrying every 10 s while the database is unavailable, and starts one <code>BoxAgent</code> for each.
+When a box is added or its BU address changes in the web app, the admin page calls
+<code>IBoxAgents.StartOrRestartAsync</code> and the supervisor replaces that box's agent.</p>
+
+<p>The agent is the box's single owner. Its key idea is <strong>one queue, one reader</strong>: everything that
+can happen at the box is put on the same queue and handled strictly one event at a time.</p>
+
+<figure>
+  <div class="canvas">
+  <svg viewBox="0 0 960 300" role="img" aria-label="Two producers, the BU connection and a one-second tick timer, write into one queue per box. A single reader takes one event at a time and routes it: connected, disconnected, scan, or tick.">
+    <defs>
+      <marker id="f3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="hi"/></marker>
+    </defs>
+    <rect x="16" y="40" width="224" height="70" rx="8" class="box"/>
+    <text x="128" y="66" class="b mid tip" tabindex="0" data-tip="The class that keeps the WebSocket connection to one box's BU open, reconnecting when it drops (section 6).">BuConnection</text>
+    <text x="128" y="86" class="s mid tip" tabindex="0" data-tip="Scans: barcodes read at the box. Notifications: unrequested messages from the BU, such as &quot;box door opened&quot;; in the PoC these are only logged.">scans, notifications,</text>
+    <text x="128" y="102" class="s mid tip" tabindex="0" data-tip="The connection itself is also an event: when it comes up the display shows the normal screen, when it drops the display shows &quot;out of service&quot;.">connected / disconnected</text>
+    <rect x="16" y="140" width="224" height="52" rx="8" class="box"/>
+    <text x="128" y="162" class="b mid tip" tabindex="0" data-tip="A timer that adds a &quot;tick&quot; event to the queue every second. It is how the agent notices that a service visit has had no scan for 10 minutes.">Tick timer</text>
+    <text x="128" y="180" class="s mid">every second</text>
+
+    <text x="445" y="72" class="s mid tip" tabindex="0" data-tip="A first-in, first-out list (a .NET Channel). Everything that happens at the box is added here, in arrival order, and taken out by one reader only.">the box's event queue</text>
+    <rect x="330" y="82" width="230" height="46" rx="6" class="box"/>
+    <rect x="342" y="92" width="34" height="26" rx="3" class="acc"/>
+    <rect x="384" y="92" width="34" height="26" rx="3" class="acc"/>
+    <rect x="426" y="92" width="34" height="26" rx="3" class="acc"/>
+    <rect x="468" y="92" width="34" height="26" rx="3" class="acc"/>
+    <rect x="510" y="92" width="34" height="26" rx="3" class="acc"/>
+    <path d="M240 75H285V96H328" class="l" marker-end="url(#f3a)"/>
+    <path d="M240 166H285V116H328" class="l" marker-end="url(#f3a)"/>
+
+    <rect x="650" y="56" width="290" height="100" rx="8" class="acc"/>
+    <text x="795" y="84" class="b mid tip" tabindex="0" data-tip="The agent takes the next event only when the previous one is completely finished, including opening locks and saving. So two scans can never be processed at the same time.">Handle one event at a time</text>
+    <text x="795" y="106" class="s mid tip" tabindex="0" data-tip="DI scope: for each event the dependency-injection container creates new workflow and database objects, used only for that event. Unit of work: all changes for the event are saved together, or not at all.">in a fresh DI scope and unit of work</text>
+    <text x="795" y="124" class="s mid tip" tabindex="0" data-tip="If handling one event throws an error, the error is written to the log and the agent carries on with the next event, so one bad scan cannot stop the box.">a failure is logged and the</text>
+    <text x="795" y="140" class="s mid">next event still runs</text>
+    <path d="M560 105H648" class="l" marker-end="url(#f3a)"/>
+    <text x="604" y="97" class="s mid">next event</text>
+
+    <path d="M795 156V196" class="l"/>
+    <path d="M295 196H853" class="l"/>
+    <path d="M295 196V226" class="l" marker-end="url(#f3a)"/>
+    <path d="M481 196V226" class="l" marker-end="url(#f3a)"/>
+    <path d="M667 196V226" class="l" marker-end="url(#f3a)"/>
+    <path d="M853 196V226" class="l" marker-end="url(#f3a)"/>
+    <rect x="210" y="228" width="170" height="60" rx="8" class="box"/>
+    <text x="295" y="252" class="b mid tip" tabindex="0" data-tip="The BU connection came up: show the screen that fits the current state (ready, or the service screen if a visit is open).">Connected</text>
+    <text x="295" y="272" class="s mid">show the current screen</text>
+    <rect x="396" y="228" width="170" height="60" rx="8" class="box"/>
+    <text x="481" y="252" class="b mid tip" tabindex="0" data-tip="The BU connection dropped: show &quot;out of service&quot; until it is back. BuConnection reconnects by itself.">Disconnected</text>
+    <text x="481" y="272" class="s mid">show Out of service</text>
+    <rect x="582" y="228" width="170" height="60" rx="8" class="box"/>
+    <text x="667" y="252" class="b mid tip" tabindex="0" data-tip="A barcode was read. BoxEvents decides whether it starts an exchange or belongs to a service visit (section 4).">Scan</text>
+    <text x="667" y="272" class="m mid tip" tabindex="0" data-tip="The method that routes a scan to the right workflow, then re-checks the stock alerts and saves.">BoxEvents.ScannedAsync</text>
+    <rect x="768" y="228" width="170" height="60" rx="8" class="box"/>
+    <text x="853" y="252" class="b mid tip" tabindex="0" data-tip="The every-second timer event. It does nothing unless a service visit is open.">Tick</text>
+    <text x="853" y="272" class="s mid tip" tabindex="0" data-tip="If a technician's visit has had no scan for 10 minutes, the visit ends automatically (section 8).">end an idle service visit</text>
+  </svg>
+  </div>
+  <figcaption>Because only one event runs at a time, two quick scans can never race each other for the same
+  full cylinder or the same free slot. Nothing needs a lock or an optimistic retry inside the workflows.</figcaption>
+</figure>
+
+<p>Each event gets its own dependency-injection scope, so every workflow, the <code>IBoxStore</code> and its
+EF Core context live exactly as long as one event. The agent also builds three helpers once per run and passes
+them to every workflow inside a <code>BoxLink</code>:</p>
+<ul>
+  <li><code>BoxHardware</code> opens a position (with retries) and pulses a lamp relay;</li>
+  <li><code>BoxSignals</code> shows a screen on the display and lights the green or red lamp;</li>
+  <li><code>BoxLink.Visit</code> holds the technician's visit in progress, in memory only.</li>
+</ul>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="routing">4. What a scan turns into</h2>
+<p>The box has one barcode reader for everyone. <code>BoxEvents.ScannedAsync</code> first asks whether the code
+belongs to an active technician, then routes on two facts:</p>
+<div class="table-wrap">
+<table>
+  <tr><th></th><th>No service visit open</th><th>Service visit open</th></tr>
+  <tr><th>A technician's service code</th><td><code>ServiceWorkflow.StartAsync</code>: start a visit</td><td><code>ServiceWorkflow.FinishAsync</code>: end the visit</td></tr>
+  <tr><th>Any other code</th><td><code>ExchangeWorkflow.ScanAsync</code>: empty-for-full exchange</td><td><code>ServiceWorkflow.InsertAsync</code>: put a refilled cylinder in</td></tr>
+</table>
+</div>
+<p>After the workflow, unless a visit is open, the stock alerts are re-evaluated and everything is saved
+(section 9).</p>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="exchange">5. The exchange, step by step</h2>
+<p>This is the main process: a department brings an empty cylinder and leaves with a full one. First the pure
+function <code>ExchangeRules.Decide</code> checks the scan in the order the client's request lists them. The
+first check that fails becomes the error shown on the display:</p>
+<ol>
+  <li>The barcode is registered and active, otherwise <code>UnknownBarcode</code>.</li>
+  <li>The cylinder is not already in a box, otherwise <code>AlreadyReturned</code>.</li>
+  <li>It is recorded as being at its department, otherwise <code>NotAtCostCentre</code>.</li>
+  <li>The box holds a full cylinder of the same department, otherwise <code>NoFullCylinderForCostCentre</code>.</li>
+  <li>A slot is free for the empty one, otherwise <code>NoFreePosition</code>.</li>
+</ol>
+<p>The lowest-numbered free slot and the lowest-numbered matching full cylinder are chosen, so staff can predict
+which doors will open. Then the workflow opens the locks:</p>
+
+<figure>
+  <div class="canvas">
+  <svg viewBox="0 0 1040 625" role="img" aria-label="Sequence of an exchange: the scan arrives, the workflow loads the inventory and asks the rules; it opens the empty slot, saves the return, opens the full slot, saves the dispense, then shows the exchange screen and pulses the green lamp. Each failure point is listed on the right.">
+    <defs>
+      <marker id="f5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="hi"/></marker>
+      <marker id="f5b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ha"/></marker>
+    </defs>
+    <rect x="15" y="20" width="130" height="40" rx="6" class="box"/><text x="80" y="45" class="b mid tip" tabindex="0" data-tip="The box's control unit: it reports the scan and opens the locks it is told to open.">Box (BU)</text>
+    <rect x="175" y="20" width="150" height="40" rx="6" class="acc"/><text x="250" y="45" class="b mid tip" tabindex="0" data-tip="The class that runs the exchange from start to end: check, open, record, inform the user.">ExchangeWorkflow</text>
+    <rect x="345" y="20" width="130" height="40" rx="6" class="box"/><text x="410" y="45" class="b mid tip" tabindex="0" data-tip="A pure function: it looks at the cylinder and the box contents and decides yes or no, without changing anything. The checks are listed above the diagram.">ExchangeRules</text>
+    <rect x="505" y="20" width="130" height="40" rx="6" class="box"/><text x="570" y="45" class="b mid tip" tabindex="0" data-tip="The SQLite database file, reached through IBoxStore.">Database</text>
+    <rect x="655" y="20" width="130" height="40" rx="6" class="box"/><text x="720" y="45" class="b mid tip" tabindex="0" data-tip="The screen inside the box, which tells the user which slots opened or why nothing did.">Box display</text>
+    <text x="920" y="45" class="b mid">If this step fails</text>
+    <path d="M80 60V612" class="life"/><path d="M250 60V612" class="life"/><path d="M410 60V612" class="life"/>
+    <path d="M570 60V612" class="life"/><path d="M720 60V612" class="life"/>
+
+    <path d="M80 100H248" class="l" marker-end="url(#f5a)"/>
+    <text x="165" y="93" class="s mid halo">scan arrives</text>
+    <path d="M250 140H568" class="l" marker-end="url(#f5a)"/>
+    <text x="410" y="133" class="s mid halo tip" tabindex="0" data-tip="Inventory: every slot of this box and the cylinder in each. The box has only a few dozen slots, so it is loaded whole and decided in memory.">load the box inventory and the cylinder</text>
+    <path d="M250 180H408" class="l" marker-end="url(#f5a)"/>
+    <text x="330" y="173" class="m mid halo tip" tabindex="0" data-tip="ExchangeRules.Decide(cylinder, inventory) returns either &quot;approved&quot; with the two slots to open, or &quot;rejected&quot; with the reason.">Decide(...)</text>
+    <path d="M410 215H252" class="l dash" marker-end="url(#f5a)"/>
+    <text x="330" y="208" class="s mid halo tip" tabindex="0" data-tip="A free slot for the empty cylinder (the lowest-numbered free one) and the slot holding a full cylinder of the same department (the lowest-numbered one).">approved: two slots</text>
+    <rect x="820" y="196" width="200" height="38" rx="5" class="err"/>
+    <text x="830" y="212" class="s tip" style="fill:var(--ink)" tabindex="0" data-tip="For example an unknown barcode, a cylinder already in the box, or no full cylinder left for the department. The red lamp and buzzer sound and the display explains why.">Rejected: red lamp and error</text>
+    <text x="830" y="227" class="s" style="fill:var(--ink)">screen. Nothing opens.</text>
+
+    <path d="M250 265H82" class="l" marker-end="url(#f5a)"/>
+    <text x="165" y="258" class="s mid halo tip" tabindex="0" data-tip="BoxHardware sends Open for that slot's lock and waits up to 3 s for &quot;OK&quot;. If none comes, it tries again, 3 times in all.">open empty slot (≤ 3 tries)</text>
+    <path d="M80 300H248" class="l dash" marker-end="url(#f5a)"/>
+    <text x="165" y="293" class="s mid halo tip" tabindex="0" data-tip="The BU confirmed that the lock opened. The door itself is not watched: once the lock opened, the movement counts.">OK</text>
+    <rect x="820" y="281" width="200" height="38" rx="5" class="err"/>
+    <text x="830" y="297" class="s tip" style="fill:var(--ink)" tabindex="0" data-tip="The lock did not confirm after 3 tries. Nothing has changed yet, so nothing needs undoing.">Hardware fault: nothing</text>
+    <text x="830" y="312" class="s" style="fill:var(--ink)">recorded, nothing to undo.</text>
+
+    <path d="M250 345H568" class="l la" marker-end="url(#f5b)"/>
+    <text x="410" y="338" class="s mid halo ta tip" tabindex="0" data-tip="Saves that the empty cylinder is now in this slot, plus a transaction with the &quot;empty&quot; flag. 8441 and 9201 are codes the client uses in its invoicing; they are set on the Settings page.">save the Return (empty flag 8441)</text>
+
+    <path d="M250 390H82" class="l" marker-end="url(#f5a)"/>
+    <text x="165" y="383" class="s mid halo tip" tabindex="0" data-tip="Same as before, for the slot with the full cylinder.">open full slot (≤ 3 tries)</text>
+    <path d="M80 425H248" class="l dash" marker-end="url(#f5a)"/>
+    <text x="165" y="418" class="s mid halo tip" tabindex="0" data-tip="The BU confirmed that the lock opened. The door itself is not watched: once the lock opened, the movement counts.">OK</text>
+    <rect x="820" y="406" width="200" height="38" rx="5" class="err"/>
+    <text x="830" y="422" class="s tip" style="fill:var(--ink)" tabindex="0" data-tip="The empty cylinder was taken back and stays recorded, but the full one could not be released. The display asks the user to contact maintenance; the log names the department that is owed a cylinder.">Dispense failed: the return</text>
+    <text x="830" y="437" class="s" style="fill:var(--ink)">stays; department owed one.</text>
+
+    <path d="M250 470H568" class="l" marker-end="url(#f5a)"/>
+    <text x="410" y="463" class="s mid halo tip" tabindex="0" data-tip="Saves that the full cylinder has gone to the department, plus a transaction with the &quot;full&quot; flag. Dispense transactions are what the hospital invoices.">save the Dispense (full flag 9201)</text>
+    <path d="M250 510H718" class="l" marker-end="url(#f5a)"/>
+    <text x="485" y="503" class="s mid halo tip" tabindex="0" data-tip="The display shows both slot numbers large. Slots 8 and 1 are only an example.">exchange screen: empty in slot 8, full from slot 1</text>
+    <path d="M250 545H82" class="l" marker-end="url(#f5a)"/>
+    <text x="165" y="538" class="s mid halo tip" tabindex="0" data-tip="The BU switches the green lamp on for about 2 s (the OpenRelay command).">green lamp pulse</text>
+
+    <rect x="190" y="572" width="440" height="30" rx="6" class="box"/>
+    <text x="410" y="591" class="s mid tip" tabindex="0" data-tip="Taking a full cylinder may leave the department low, so the stock alerts are brought up to date and saved with everything else (section 9).">then BoxEvents re-checks the stock alerts and saves</text>
+  </svg>
+  </div>
+  <figcaption>The return is saved (blue) <em>before</em> the full cylinder's lock is asked to open. If that second
+  lock fails, the database still says correctly that the empty cylinder is in the box, and the log says which
+  department is owed a full one. Doors are not watched: a movement counts as soon as its lock confirms it opened.</figcaption>
+</figure>
+
+<p>Every movement goes through <code>CylinderLedger</code>, which changes the cylinder through the domain and
+adds a <code>CylinderTransaction</code> with the full or empty flag configured at that moment. The dispense
+transactions are what the hospital invoices.</p>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="bu">6. Talking to the BU</h2>
+<p><code>BuConnection</code> keeps the WebSocket open and reconnects with growing delays when it drops. The
+awkward part of the OX Point protocol is that <strong>replies carry no request ID</strong>. A reply can only be
+matched to its command by content, so the connection allows only one command in flight and checks every
+incoming message against it:</p>
+
+<figure>
+  <div class="canvas">
+  <svg viewBox="0 0 960 395" role="img" aria-label="BoxHardware sends Open CU1/L8 through BuConnection, which holds a send gate so only one command is in flight. A scan that arrives first does not match, so it goes to the agent's queue. The OK reply for board 1 lock 8 matches and is returned. No reply within 3 seconds means a timeout and a retry.">
+    <defs>
+      <marker id="f6a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="hi"/></marker>
+      <marker id="f6b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ha"/></marker>
+    </defs>
+    <rect x="15" y="20" width="150" height="40" rx="6" class="box"/><text x="90" y="45" class="b mid tip" tabindex="0" data-tip="The box agent's event queue from section 3.">Agent's queue</text>
+    <rect x="205" y="20" width="150" height="40" rx="6" class="box"/><text x="280" y="45" class="b mid tip" tabindex="0" data-tip="The class the workflows use to say &quot;open this slot&quot; or &quot;light this lamp&quot;. It turns that into BU commands and does the retrying.">BoxHardware</text>
+    <rect x="445" y="20" width="150" height="40" rx="6" class="acc"/><text x="520" y="45" class="b mid tip" tabindex="0" data-tip="The WebSocket client that talks to the BU.">BuConnection</text>
+    <rect x="765" y="20" width="150" height="40" rx="6" class="box"/><text x="840" y="45" class="b mid tip" tabindex="0" data-tip="The box's control unit (in the PoC, the simulator).">BU</text>
+    <path d="M90 60V345" class="life"/><path d="M280 60V345" class="life"/>
+    <path d="M520 60V345" class="life"/><path d="M840 60V345" class="life"/>
+
+    <path d="M280 95H518" class="l" marker-end="url(#f6a)"/>
+    <text x="400" y="88" class="m mid halo tip" tabindex="0" data-tip="Send the Open command for lock 8 on control board 1 (CU1). A slot's position number is mapped to a board and lock number in the database.">SendAsync(Open CU1/L8)</text>
+    <rect x="400" y="114" width="240" height="28" rx="5" class="acc"/>
+    <text x="520" y="132" class="s mid tip" style="fill:var(--ink)" tabindex="0" data-tip="A lock (SemaphoreSlim) that lets only one command be sent and waited for at a time. A second command waits until the first one has its reply or times out.">send gate: one command in flight</text>
+    <path d="M520 175H838" class="l" marker-end="url(#f6a)"/>
+    <text x="680" y="168" class="m mid halo tip" tabindex="0" data-tip="The JSON text actually sent over the WebSocket: open board 1, lock 8.">{"Open":[1,8]}</text>
+    <path d="M840 215H522" class="l dash" marker-end="url(#f6a)"/>
+    <text x="680" y="208" class="m mid halo tip" tabindex="0" data-tip="A scan the BU sends on its own, at any moment: here someone scanned cylinder O2-ARO-02 while the server was waiting for the lock reply.">{"QR":"O2-ARO-02"}</text>
+    <path d="M520 250H92" class="l la" marker-end="url(#f6b)"/>
+    <text x="305" y="243" class="s mid halo ta tip" tabindex="0" data-tip="The scan does not answer the Open command, so it is passed on to the agent's queue and handled after the current event is finished.">not the reply: forwarded as a scan event</text>
+    <path d="M840 295H522" class="l dash" marker-end="url(#f6a)"/>
+    <text x="680" y="288" class="m mid halo tip" tabindex="0" data-tip="The BU's reply to the Open command. It is recognised as the reply because board and lock match the pending command.">{"Response":"OK","Board":1,"Lock":8}</text>
+    <path d="M520 330H282" class="l dash" marker-end="url(#f6a)"/>
+    <text x="400" y="323" class="s mid halo tip" tabindex="0" data-tip="SendAsync returns the reply to BoxHardware, which sees that the lock opened.">matches the command: Replied</text>
+
+    <rect x="160" y="356" width="480" height="28" rx="6" class="box"/>
+    <text x="400" y="374" class="s mid tip" tabindex="0" data-tip="A late reply that arrives after the timeout no longer matches anything, so it is forwarded as an event and ignored.">No reply within 3 s: TimedOut, and BoxHardware tries again (3 tries in all).</text>
+  </svg>
+  </div>
+  <figcaption>Each <code>BuCommand</code> knows its own reply (<code>IsAnsweredBy</code>). Anything that does not
+  answer the pending command, such as a scan, a door notification or a late reply, is treated as an event and
+  goes to the agent's queue.</figcaption>
+</figure>
+
+<p>The JSON shapes live in <code>OxBox.OxPointProtocol</code>. Every key and fixed value is defined once in
+<code>WireNames</code>, which the parsers and writers in both directions share. The simulator in
+<code>tools/OxBox.BuSimulator</code> uses the same protocol project, so it cannot drift from the server's view
+of the wire format.</p>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="cylinder">7. A cylinder's life</h2>
+<p>A cylinder keeps its barcode and its department for life. Its <em>location</em> and <em>status</em> change
+only through four intent-named methods on <code>Cylinder</code>. Each method checks that the move is allowed
+(it throws otherwise) and returns the audit record of the change:</p>
+
+<figure>
+  <div class="canvas">
+  <svg viewBox="0 0 960 400" role="img" aria-label="Cylinder state cycle: at the department, returned into the box as empty, sent to the supplier by a technician, restocked into the box as full, dispensed back to the department.">
+    <defs>
+      <marker id="f7a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="hi"/></marker>
+    </defs>
+    <rect x="70" y="50" width="250" height="80" rx="10" class="box"/>
+    <text x="195" y="84" class="b mid tip" tabindex="0" data-tip="The cylinder is with the hospital department that owns it, in use or waiting to be exchanged.">At the department</text>
+    <text x="195" y="106" class="m mid tip" tabindex="0" data-tip="The code name of this location. CostCentre is the system's word for a department, because that is who gets invoiced.">AtCostCentre</text>
+    <rect x="640" y="50" width="250" height="80" rx="10" class="acc"/>
+    <text x="765" y="84" class="b mid tip" tabindex="0" data-tip="An empty cylinder a user has returned. It waits in its slot until a technician takes it for refilling.">In the box, empty</text>
+    <text x="765" y="106" class="m mid tip" tabindex="0" data-tip="Location InBox, status Empty. Only a cylinder in the box occupies a slot.">InBox · Empty</text>
+    <rect x="640" y="270" width="250" height="80" rx="10" class="box"/>
+    <text x="765" y="304" class="b mid tip" tabindex="0" data-tip="The technician took the cylinder away to be refilled.">With the supplier</text>
+    <text x="765" y="326" class="m mid tip" tabindex="0" data-tip="Location WithSupplier, status Empty.">WithSupplier · Empty</text>
+    <rect x="70" y="270" width="250" height="80" rx="10" class="acc"/>
+    <text x="195" y="304" class="b mid tip" tabindex="0" data-tip="A refilled cylinder waiting in its slot to be handed to its department.">In the box, full</text>
+    <text x="195" y="326" class="m mid tip" tabindex="0" data-tip="Location InBox, status Full. Only these count as stock for alerts.">InBox · Full</text>
+
+    <path d="M320 90H638" class="l" marker-end="url(#f7a)"/>
+    <text x="480" y="82" class="m mid tip" tabindex="0" data-tip="Method on Cylinder. Allowed only if the cylinder is at its department.">ReturnToBox</text>
+    <text x="480" y="108" class="s mid">user scans the empty (exchange)</text>
+    <path d="M765 130V268" class="l" marker-end="url(#f7a)"/>
+    <text x="777" y="195" class="m tip" tabindex="0" data-tip="Method on Cylinder. Allowed only for an empty cylinder in a box.">SendToSupplier</text>
+    <text x="777" y="212" class="s">technician starts a visit</text>
+    <path d="M640 310H322" class="l" marker-end="url(#f7a)"/>
+    <text x="480" y="302" class="m mid tip" tabindex="0" data-tip="Method on Cylinder. Allowed for any cylinder that is not already in a box; afterwards it counts as full.">RestockIntoBox</text>
+    <text x="480" y="328" class="s mid">technician scans it in</text>
+    <path d="M195 270V132" class="l" marker-end="url(#f7a)"/>
+    <text x="183" y="195" class="m end tip" tabindex="0" data-tip="Method on Cylinder. Allowed only for a full cylinder in a box.">DispenseToCostCentre</text>
+    <text x="183" y="212" class="s end">same exchange, full slot</text>
+
+    <text x="480" y="195" class="s mid">every arrow also writes a</text>
+    <text x="480" y="212" class="s mid tip" tabindex="0" data-tip="CylinderStatusChange: the audit record of the change (from which state to which, why, when), shown as the cylinder's history. Transaction: the movement record with the full/empty flag, used for invoicing and reports.">CylinderStatusChange and a transaction</text>
+    <text x="480" y="385" class="s mid tip" tabindex="0" data-tip="Cylinders are registered in the web app. Deactivate is for damaged or lost cylinders: they can no longer be scanned in, but their records stay.">New cylinders start at the department or with the supplier. Deactivating one keeps its history.</text>
+  </svg>
+  </div>
+  <figcaption>The two blue states are the only ones in which a cylinder occupies a slot. An exchange moves two
+  cylinders at once: the scanned empty one along the top arrow, and a full one of the same department up the left.</figcaption>
+</figure>
+
+<p>The workflows check the same conditions first (<code>ExchangeRules</code>, <code>ServiceRules</code>) and turn
+them into friendly errors. So an exception from <code>Cylinder</code> means a bug, never a user mistake. A
+cylinder in a box cannot be deactivated, so the box never holds a cylinder it is not allowed to hand out.</p>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="service">8. Service visits</h2>
+<p>A technician restocks the box with their personal service code. The visit is held in memory in
+<code>BoxLink.Visit</code>. If the server restarts, the visit simply ends; every movement it made is already
+saved.</p>
+
+<figure>
+  <div class="canvas">
+  <svg viewBox="0 0 960 205" role="img" aria-label="Two states. A service code scan moves the box from No visit to Visit open and unlocks every slot with an empty cylinder. While open, each cylinder scan opens the lowest free slot. The service code again, or ten minutes without a scan, ends the visit.">
+    <defs>
+      <marker id="f8a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="hi"/></marker>
+    </defs>
+    <rect x="60" y="100" width="260" height="70" rx="10" class="box"/>
+    <text x="190" y="128" class="b mid tip" tabindex="0" data-tip="The normal state: every cylinder scan is treated as an exchange.">No visit</text>
+    <text x="190" y="150" class="s mid">scans run the exchange</text>
+    <rect x="620" y="100" width="280" height="70" rx="10" class="acc"/>
+    <text x="760" y="128" class="b mid tip" tabindex="0" data-tip="A technician is restocking the box. Cylinder scans now mean &quot;put this refilled cylinder in&quot;.">Visit open</text>
+    <text x="760" y="150" class="s mid tip" tabindex="0" data-tip="The visit is kept only in the server's memory (BoxLink.Visit), not in the database; a restart ends it. While it is open, no stock alerts are raised or resolved.">in memory; stock alerts paused</text>
+
+    <path d="M320 122H618" class="l" marker-end="url(#f8a)"/>
+    <text x="470" y="100" class="mid tip" tabindex="0" data-tip="Each technician has a personal service barcode, registered on the Technicians page. The demo one is SERVIS-001.">service code scanned</text>
+    <text x="470" y="115" class="s mid tip" tabindex="0" data-tip="All slots holding empty cylinders open at once, so the technician can take them out. Each one is recorded as sent to the supplier.">unlocks every slot with an empty</text>
+    <path d="M620 150H322" class="l" marker-end="url(#f8a)"/>
+    <text x="470" y="170" class="s mid">service code again, or 10 min</text>
+    <text x="470" y="185" class="s mid tip" tabindex="0" data-tip="The 10 minutes count from the last scan. The every-second tick event checks it.">without a scan (checked each tick)</text>
+    <path d="M720 100C720 42 800 42 800 98" class="l" marker-end="url(#f8a)"/>
+    <text x="760" y="44" class="s mid tip" tabindex="0" data-tip="Refilled cylinders are scanned one by one. Each gets the lowest-numbered free slot and is recorded as full and in the box.">cylinder scanned: the lowest free slot opens, cylinder marked full</text>
+  </svg>
+  </div>
+  <figcaption>Stock alerts are not evaluated while a visit is open. The stock is being changed on purpose, and a
+  "low stock" e-mail halfway through restocking would be noise. The end of the visit is evaluated like any other
+  event.</figcaption>
+</figure>
+
+<p>If an empty cylinder's slot fails to open at the start, that cylinder stays recorded in the box and is
+collected on a later visit. A rejected insert (unknown code, already in a box, still at a department, box full)
+shows an error and then returns to the service screen.</p>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="alerts">9. Stock alerts and the outbox</h2>
+<p>After every event outside a service visit, <code>StockAlertEvaluator</code> counts the full cylinders per
+department in the box and works out which alert should be active. It compares that with the alerts that are
+active, and raises or resolves the difference. So it corrects itself even if an earlier evaluation was missed,
+for example after a crash.</p>
+
+<figure>
+  <div class="canvas">
+  <svg viewBox="0 0 960 290" role="img" aria-label="The evaluator counts full cylinders per department and picks one level: none, last one, or low stock. Raising an alert writes the alert and its outbox messages in the same transaction as the movement. The dispatcher picks up due messages every five seconds and sends them by e-mail or SMS, retrying failures with growing delays.">
+    <defs>
+      <marker id="f9a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="hi"/></marker>
+      <marker id="f9e" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="he"/></marker>
+    </defs>
+    <rect x="16" y="40" width="200" height="96" rx="8" class="box"/>
+    <text x="116" y="66" class="b mid tip" tabindex="0" data-tip="The class that decides which stock alerts should be active for each department using this box.">StockAlertEvaluator</text>
+    <text x="116" y="88" class="s mid">after every event</text>
+    <text x="116" y="104" class="s mid">outside a service visit</text>
+    <text x="116" y="120" class="s mid tip" tabindex="0" data-tip="Only full cylinders in the box count, per department, because a department can only take its own cylinders.">counts full cylinders</text>
+    <path d="M216 88H248" class="l" marker-end="url(#f9a)"/>
+
+    <text x="350" y="30" class="s mid">one level per department</text>
+    <rect x="250" y="40" width="200" height="34" rx="5" class="err"/>
+    <text x="262" y="62" class="s tip" style="fill:var(--ink)" tabindex="0" data-tip="The department cannot exchange at all. The client asks for this one to be raised immediately.">0 full: No full cylinder</text>
+    <rect x="250" y="80" width="200" height="34" rx="5" class="warn"/>
+    <text x="262" y="102" class="s tip" style="fill:var(--ink)" tabindex="0" data-tip="The next exchange will use the department's last full cylinder.">1 full: Last full cylinder</text>
+    <rect x="250" y="120" width="200" height="34" rx="5" class="warn" style="opacity:.75"/>
+    <text x="262" y="142" class="s tip" style="fill:var(--ink)" tabindex="0" data-tip="At or below the low-stock threshold: a number set on the Settings page, which a department can override on the Cost centres page.">≤ threshold: Low stock</text>
+
+    <path d="M450 95H538" class="l" marker-end="url(#f9a)"/>
+    <text x="494" y="87" class="s mid tip" tabindex="0" data-tip="Raise: create the alert and its messages, unless the same alert is already active. Resolve: mark an active alert as over when the stock is back up.">raise / resolve</text>
+
+    <rect x="540" y="40" width="200" height="112" rx="8" class="acc"/>
+    <text x="640" y="64" class="b mid">SQLite</text>
+    <text x="640" y="86" class="m mid tip" tabindex="0" data-tip="One row per alert, with its kind, box, department, and when it was raised and resolved. Shown on the dashboard and the Alerts page.">Alert</text>
+    <text x="640" y="104" class="m mid tip" tabindex="0" data-tip="One e-mail or SMS waiting to be sent, per alert recipient. Recipients are set on the Alerts page, for all departments or one.">OutboxMessage per recipient</text>
+    <text x="640" y="124" class="s mid">saved with the movement,</text>
+    <text x="640" y="140" class="s mid tip" tabindex="0" data-tip="A database transaction saves several changes as one: all of them or none. So the alert cannot exist without its messages, or the other way round.">in one transaction</text>
+
+    <path d="M740 88H788" class="l" marker-end="url(#f9a)"/>
+    <text x="764" y="80" class="s mid tip" tabindex="0" data-tip="Messages that are not sent yet and whose next attempt time has come.">due</text>
+    <rect x="790" y="40" width="154" height="96" rx="8" class="box"/>
+    <text x="867" y="66" class="b mid tip" tabindex="0" data-tip="A background job inside the server.">OutboxDispatcher</text>
+    <text x="867" y="88" class="s mid">every 5 s takes up to</text>
+    <text x="867" y="104" class="s mid">20 due messages,</text>
+    <text x="867" y="120" class="m mid tip" tabindex="0" data-tip="Messages are sent in the order they were queued. The database belongs to this one server, so only one dispatcher ever sends them.">oldest first</text>
+
+    <path d="M826 136V188" class="l" marker-end="url(#f9a)"/>
+    <path d="M908 136V188" class="l" marker-end="url(#f9a)"/>
+    <rect x="790" y="190" width="72" height="50" rx="6" class="box"/>
+    <text x="826" y="212" class="b mid">E-mail</text>
+    <text x="826" y="230" class="s mid tip" tabindex="0" data-tip="E-mail is sent through the mail server configured in appsettings (localhost:2525 in the PoC).">SMTP</text>
+    <rect x="872" y="190" width="72" height="50" rx="6" class="box"/>
+    <text x="908" y="212" class="b mid">SMS</text>
+    <text x="908" y="230" class="s mid tip" tabindex="0" data-tip="No SMS provider is chosen yet, so SMS are only written to the server log.">log only</text>
+
+    <path d="M790 215H640V154" class="l le dash" marker-end="url(#f9e)"/>
+    <text x="715" y="207" class="s mid tip" tabindex="0" data-tip="A failed message is tried again after 30 s, then 1 min, 2 min, 4 min and so on, at most 1 hour apart. The last error is shown on the Alerts page.">failed: retry 30 s … 1 h</text>
+    <text x="16" y="275" class="s">Only the most severe level is active per department. It resolves when stock rises again, and a new drop sends new messages.</text>
+  </svg>
+  </div>
+  <figcaption>The <em>transactional outbox</em>: the alert and the messages to send are written in the same
+  database transaction as the cylinder movement that caused them, so an alert can never be lost between "saved"
+  and "sent". Sending happens later, in the background, with retries after 30 s, 1 min, 2 min and so on, at most
+  an hour apart.</figcaption>
+</figure>
+
+<p>Recipients come from the <strong>Alerts</strong> page: some receive alerts for every department, others for
+one. A department can override the default low-stock threshold on the <strong>Cost centres</strong> page.
+The dispatcher holds no database transaction while it sends, so a slow mail server never holds up the box
+agents.</p>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="kiosk">10. The box display</h2>
+<p>The workflows never produce text. They say <em>which screen</em> to show (<code>ReadyScreen</code>,
+<code>ExchangeOpenScreen(8, 1)</code>, <code>RejectedScreen(UnknownBarcode)</code> and so on), and the web layer
+turns that into words in the right language.</p>
+
+<figure>
+  <div class="canvas">
+  <svg viewBox="0 0 1020 215" role="img" aria-label="BoxSignals passes a screen to KioskScreens, which holds the latest screen per box in memory and raises a Changed event. KioskPage renders it as text through KioskView and pushes it over SignalR to the box display. BoxSignals also pulses the green or red lamp relay on the BU.">
+    <defs>
+      <marker id="f10a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="hi"/></marker>
+    </defs>
+    <rect x="10" y="40" width="170" height="70" rx="8" class="box"/>
+    <text x="95" y="66" class="b mid tip" tabindex="0" data-tip="The class the workflows call to give feedback at the box: show a screen and flash the right lamp.">BoxSignals</text>
+    <text x="95" y="86" class="s mid">called by the workflows</text>
+    <rect x="286" y="40" width="170" height="70" rx="8" class="acc"/>
+    <text x="371" y="66" class="b mid tip" tabindex="0" data-tip="Keeps the latest screen of every box in memory and announces when one changes. It is the implementation of IKioskDisplay.">KioskScreens</text>
+    <text x="371" y="86" class="s mid tip" tabindex="0" data-tip="Only the newest screen matters; nothing is queued or saved.">latest screen per box</text>
+    <rect x="562" y="40" width="170" height="70" rx="8" class="box"/>
+    <text x="647" y="66" class="b mid tip" tabindex="0" data-tip="The Blazor page at /kiosk/{box code} that the box display opens.">KioskPage</text>
+    <text x="647" y="86" class="s mid tip" tabindex="0" data-tip="{code} is the box code, such as BOX-01. Blazor Server runs the page on the server and keeps a live connection to the browser.">/kiosk/{code}, Blazor</text>
+    <rect x="838" y="40" width="170" height="70" rx="8" class="box"/>
+    <text x="923" y="66" class="b mid tip" tabindex="0" data-tip="The browser on the box's screen.">Box display</text>
+    <text x="923" y="86" class="s mid tip" tabindex="0" data-tip="Czech by default. Add ?lang=en to the address for English.">Czech, or ?lang=en</text>
+
+    <path d="M180 75H284" class="l" marker-end="url(#f10a)"/>
+    <text x="233" y="67" class="s mid tip" tabindex="0" data-tip="The workflow passes a screen object, such as ExchangeOpenScreen(8, 1), never text.">Show(screen)</text>
+    <path d="M456 75H560" class="l" marker-end="url(#f10a)"/>
+    <text x="508" y="67" class="s mid tip" tabindex="0" data-tip="A .NET event: every open kiosk page for that box is told &quot;your screen changed&quot; and redraws.">Changed event</text>
+    <path d="M732 75H836" class="l" marker-end="url(#f10a)"/>
+    <text x="784" y="67" class="s mid tip" tabindex="0" data-tip="SignalR is the live connection Blazor Server uses to send page changes to the browser.">text via SignalR</text>
+
+    <path d="M95 110V148" class="l" marker-end="url(#f10a)"/>
+    <text x="103" y="134" class="m tip" tabindex="0" data-tip="The BU command that switches a relay on for about 2 s. The lamps are wired to the BU's relay board.">PulseRelay</text>
+    <rect x="10" y="150" width="170" height="50" rx="8" class="box"/>
+    <text x="95" y="172" class="b mid tip" tabindex="0" data-tip="Green means success. Red, with the buzzer, means an error.">Lamp on the BU</text>
+    <text x="95" y="190" class="s mid">green, or red + buzzer</text>
+
+    <text x="371" y="135" class="s mid">in memory; error and thank-you</text>
+    <text x="371" y="151" class="s mid tip" tabindex="0" data-tip="Thank-you and error screens are &quot;transient&quot;: after 8 s the display moves on by itself, usually back to &quot;scan your empty cylinder&quot;.">screens give way after 8 s</text>
+    <text x="647" y="135" class="s mid tip" tabindex="0" data-tip="KioskView turns a screen object into a title, text, colour and the slot numbers to show large.">KioskView picks the words</text>
+    <text x="647" y="151" class="s mid">for the language</text>
+  </svg>
+  </div>
+  <figcaption>The display is a plain browser page. <code>KioskScreens</code> is the in-memory implementation of
+  <code>IKioskDisplay</code>; after a restart each agent shows its current screen again, so nothing needs saving.</figcaption>
+</figure>
+
+<p>All wording is in <code>Resources/Kiosk/KioskTexts.resx</code> (Czech) and <code>KioskTexts.en.resx</code>
+(English), keyed by screen and error name. Adding a language means adding a resource file, not touching any
+workflow.</p>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="webapp">11. The admin web app</h2>
+<p>The admin app is made of Blazor Server pages in <code>Components/Pages/Admin</code>. They read the database
+directly through an EF Core context factory and do not go through the box agents. They are the "back office":
+registering cylinders, technicians and recipients, viewing transactions, and exporting reports
+(<code>ReportQueries</code>, CSV through <code>AdminEndpoints</code>).</p>
+<div class="table-wrap">
+<table>
+  <tr><th>Role</th><th>Sees</th><th>Can change</th></tr>
+  <tr><td><code>Admin</code></td><td>Everything</td><td>Everything</td></tr>
+  <tr><td><code>Viewer</code></td><td>Only the departments in their <code>oxbox:cost-centre</code> claims</td><td>Nothing</td></tr>
+</table>
+</div>
+<p><code>UserScope</code> turns the signed-in user into "is admin" plus "which departments may be shown", and each
+page filters with <code>MaySee</code>. The live connection state on the dashboard comes from
+<code>BoxStatusBoard</code>, an in-memory map that the agents update.</p>
+
+<!-- ───────────────────────────────────────────── -->
+<h2 id="start">12. Where to start reading</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>To understand…</th><th>Read</th></tr>
+  <tr><td>How the server starts</td><td><a href="../src/OxBox.Web/Program.cs"><code>OxBox.Web/Program.cs</code></a>, then the two <code>DependencyInjection.cs</code> files</td></tr>
+  <tr><td>The per-box event loop</td><td><a href="../src/OxBox.Application/Boxes/BoxAgent.cs"><code>Boxes/BoxAgent.cs</code></a>, <a href="../src/OxBox.Application/Boxes/BoxEvents.cs"><code>Boxes/BoxEvents.cs</code></a></td></tr>
+  <tr><td>The exchange</td><td><a href="../src/OxBox.Application/Exchange/ExchangeRules.cs"><code>Exchange/ExchangeRules.cs</code></a>, <a href="../src/OxBox.Application/Exchange/ExchangeWorkflow.cs"><code>Exchange/ExchangeWorkflow.cs</code></a></td></tr>
+  <tr><td>Restocking</td><td><a href="../src/OxBox.Application/Service/ServiceWorkflow.cs"><code>Service/ServiceWorkflow.cs</code></a>, <code>ServiceRules.cs</code></td></tr>
+  <tr><td>What a movement records</td><td><a href="../src/OxBox.Application/Inventory/CylinderLedger.cs"><code>Inventory/CylinderLedger.cs</code></a>, <a href="../src/OxBox.Domain/Cylinders/Cylinder.cs"><code>Domain/Cylinders/Cylinder.cs</code></a></td></tr>
+  <tr><td>Alerts</td><td><a href="../src/OxBox.Application/Alerts/StockAlertEvaluator.cs"><code>Alerts/StockAlertEvaluator.cs</code></a>, <code>BoxAlerts.cs</code>, <a href="../src/OxBox.Infrastructure/Alerts/OutboxDispatcher.cs"><code>OutboxDispatcher.cs</code></a></td></tr>
+  <tr><td>The wire protocol</td><td><a href="../src/OxBox.Infrastructure/OxPoint/BuConnection.cs"><code>OxPoint/BuConnection.cs</code></a>, <code>OxBox.OxPointProtocol/Commands</code> and <code>/Messages</code></td></tr>
+  <tr><td>The box display</td><td><code>OxBox.Web/Kiosk</code> and <code>Components/Kiosk/KioskPage.razor</code></td></tr>
+</table>
+</div>
+<p class="note">Timings used above come from the options classes and their defaults: 3 s per BU command and 3 tries
+per lock (<code>BuConnectionOptions</code>, <code>BoxOptions</code>), a 1 s tick, a 10 min service timeout
+(<code>ServiceOptions</code>), 8 s for brief screens (<code>KioskScreens</code>) and a 5 s outbox poll
+(<code>OutboxDispatcher</code>).</p>
+
+<footer>
+  <p><strong>About the diagrams.</strong> They are hand-written inline SVG, so this page works offline and needs no
+  script, no build step and no pinned library version, and it follows your light or dark theme. They use the
+  usual software-diagram notations: a context view and a layer view (as in the C4 model), sequence diagrams
+  for the exchange and the BU protocol, and state diagrams for cylinders and service visits. To change one, edit
+  the coordinates in this file. If the diagrams start changing often, the usual next step is diagrams-as-code
+  (Mermaid or Structurizr DSL) rendered to SVG at build time.</p>
+</footer>
+
+</main>
+<script>
+  // One shared tooltip for every diagram text with a data-tip: hover, keyboard focus or tap.
+  (() => {
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    tooltip.setAttribute('role', 'tooltip');
+    document.body.append(tooltip);
+    let current = null;
+
+    function show(target) {
+      current = target;
+      tooltip.textContent = target.dataset.tip;
+      tooltip.classList.add('show');
+      const anchor = target.getBoundingClientRect();
+      const width = tooltip.offsetWidth;
+      const left = Math.min(Math.max(8, anchor.left + anchor.width / 2 - width / 2), document.documentElement.clientWidth - width - 8);
+      const below = anchor.bottom + 8;
+      const top = below + tooltip.offsetHeight > window.innerHeight ? anchor.top - tooltip.offsetHeight - 8 : below;
+      tooltip.style.left = `${left + window.scrollX}px`;
+      tooltip.style.top = `${top + window.scrollY}px`;
+    }
+
+    function hide() {
+      current = null;
+      tooltip.classList.remove('show');
+    }
+
+    for (const target of document.querySelectorAll('[data-tip]')) {
+      target.addEventListener('mouseenter', () => show(target));
+      target.addEventListener('mouseleave', hide);
+      target.addEventListener('focus', () => show(target));
+      target.addEventListener('blur', hide);
+      target.addEventListener('click', event => {
+        event.stopPropagation();
+        current === target ? hide() : show(target);
+      });
+    }
+
+    document.addEventListener('click', hide);
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
+    window.addEventListener('scroll', () => { if (current) show(current); }, { passive: true });
+  })();
+</script>
+</body>
+</html>

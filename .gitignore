@@ -482,3 +482,12 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# SQLite database files created by the app and the tests
+*.db
+*.db-shm
+*.db-wal
+
+# Server data folder (database and sign-in keys) and packages built by deploy/publish.ps1
+src/OxBox.Web/data/
+artifacts/

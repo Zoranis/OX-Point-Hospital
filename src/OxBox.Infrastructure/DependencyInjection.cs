@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Npgsql;
+using Microsoft.Extensions.Hosting;
 using OxBox.Application.Abstractions;
 using OxBox.Application.Boxes;
 using OxBox.Application.Configuration;
@@ -25,9 +25,11 @@ public static class DependencyInjection
 
         // The factory serves web pages, which live longer than one unit of work; workflows use
         // the scoped context.
-        services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
+        services.AddSingleton(provider => SqliteDatabaseFile.Prepare(
+            connectionString,
+            provider.GetService<IHostEnvironment>()?.ContentRootPath ?? AppContext.BaseDirectory));
         services.AddDbContextFactory<OxBoxDbContext>(
-            (provider, options) => options.UseNpgsql(provider.GetRequiredService<NpgsqlDataSource>()),
+            (provider, options) => options.UseSqlite(provider.GetRequiredService<SqliteDatabaseFile>().ConnectionString),
             ServiceLifetime.Scoped);
         services.AddScoped<DatabaseInitializer>();
         services.AddScoped<DemoDataSeeder>();

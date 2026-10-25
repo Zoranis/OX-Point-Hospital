@@ -11,15 +11,15 @@ web page where you "scan" barcodes, so you can test everything on one PC.
 - [docs/requirements.md](docs/requirements.md): the client's request (English translation)
 - [docs/scope.md](docs/scope.md): which feature meets which requirement, and what was left out
 - [docs/development.md](docs/development.md): code structure, tests and coding standards
+- [docs/deployment.md](docs/deployment.md): installing the demo on another Windows PC, without Docker or the .NET SDK
 
 ## Before you start: use Windows, not WSL
 
 These instructions are for **Windows 10 or 11**. Run every command in **PowerShell** or
 **Command Prompt** (Start menu → type "PowerShell"; Windows Terminal works too).
 
-Do **not** use a WSL or Ubuntu terminal. Linux there has its own `docker` and `dotnet`, which do not
-use the Windows ones you install below, so `docker` fails with "failed to connect to the docker
-API at unix:///var/run/docker.sock".
+Do **not** use a WSL or Ubuntu terminal. Linux there has its own `dotnet`, which does not use the
+Windows one you install below.
 
 ## 1. Install the prerequisites (once)
 
@@ -28,14 +28,13 @@ Install these on Windows:
 | Tool | Why | Get it |
 |---|---|---|
 | .NET SDK 9 (9.0.300 or newer) | Builds and runs the application | https://dotnet.microsoft.com/download/dotnet/9.0 |
-| Docker Desktop | Runs the PostgreSQL database in a container, so nothing else needs installing | https://www.docker.com/products/docker-desktop/ |
 | Git | Downloads the code | https://git-scm.com/downloads |
 
 To check that they work, open a new PowerShell window (so it sees the newly installed tools) and
 run `dotnet --version`, which should print 9.0.300 or higher.
-Then start Docker Desktop, leave it running, and run `docker info`: it should print a long report
-with no error at the end. (`docker --version` is not enough; it works even when Docker is not
-running.)
+
+Nothing else is needed. The database is SQLite, which is built into the server: it is a single file
+that the server creates by itself, `src/OxBox.Web/data/oxbox_poc.db`.
 
 ## 2. Get the code
 
@@ -50,28 +49,18 @@ Run every command below from this folder.
 
 ## 3. Start the system
 
-You need **three PowerShell windows**, each in the `oxbox-poc` folder. Commands 2 and 3 keep
-running; leave their windows open.
+You need **two PowerShell windows**, each in the `oxbox-poc` folder. Both commands keep running;
+leave their windows open.
 
-**Window 1: the database.** This downloads PostgreSQL the first time, then starts it on port 5433:
-
-```powershell
-docker run -d --name oxbox-db -e POSTGRES_PASSWORD=postgres -p 5433:5432 postgres:16-alpine
-```
-
-Next time, the container already exists, so start it with `docker start oxbox-db` instead.
-
-**Window 2: the box simulator.** Wait until it prints `Now listening on: http://localhost:5080`.
+**Window 1: the box simulator.** Wait until it prints `Now listening on: http://localhost:5080`.
 
 ```powershell
 dotnet run --project tools/OxBox.BuSimulator
 ```
 
-**Window 3: the OxBox server.** The first start takes a minute: it builds the code, creates the
-database, a box with 30 positions and demo data. Wait until it prints
-`Now listening on: http://localhost:5029`. It may open a browser tab by itself. On the very first
-start it logs one red `fail` line saying the database could not be reached; that is only the check
-before the database is created, and you can ignore it.
+**Window 2: the OxBox server.** The first start takes a minute: it builds the code, creates the
+database file, a box with 30 positions and demo data. Wait until it prints
+`Now listening on: http://localhost:5029`. It may open a browser tab by itself.
 
 ```powershell
 dotnet run --project src/OxBox.Web --launch-profile http
@@ -132,33 +121,33 @@ click one to close it.
 ## 6. Stop it and start again
 
 - Stop the simulator and the server with **Ctrl+C** in their windows.
-- Stop the database with `docker stop oxbox-db`.
-- **Start over with fresh demo data:** with the server stopped, delete the database and start the
-  server again; it recreates everything.
+- All data stays in `src/OxBox.Web/data/` and is there again on the next start.
+- **Start over with fresh demo data:** with the server stopped, delete the database files and start
+  the server again; it recreates everything.
 
   ```powershell
-  docker exec oxbox-db psql -U postgres -c "DROP DATABASE oxbox_poc"
+  Remove-Item src/OxBox.Web/data/oxbox_poc.db*
   ```
 
 ## If something goes wrong
 
 | Problem | Fix |
 |---|---|
-| `docker: ... Conflict. The container name "/oxbox-db" is already in use` | The container exists already: `docker start oxbox-db`. |
-| `failed to connect to the docker API at unix:///var/run/docker.sock` | You are in a WSL (Linux) terminal. Open PowerShell or Command Prompt instead, go to the `oxbox-poc` folder, and run the command again. |
-| `failed to connect to the docker API at npipe:...` or `error during connect` | Docker Desktop is not running. Start it from the Start menu, wait until it says "Engine running", then check with `docker info`. |
-| The server stops with a database connection error | The database is not running: `docker start oxbox-db`. Check with `docker ps`. |
-| `address already in use` for port 5029, 5080, 3030 or 5433 | Another program uses that port, maybe a second copy of the server or simulator. Close it. |
+| `Remove-Item` says the database file is in use | The server is still running. Stop it with **Ctrl+C**, then try again. |
+| `address already in use` for port 5029, 5080 or 3030 | Another program uses that port, maybe a second copy of the server or simulator. Close it. |
 | The box display says the box is offline | Start the simulator; the server reconnects to it within a few seconds. |
 | A `SDK not found` or `global.json` error | Install the .NET 9 SDK (9.0.300 or newer). |
 
 **Alert e-mails** are sent to a mail server on `localhost:2525`. Without one, the alerts still
 appear in the web app and their e-mails wait in an outbox; the server's window then shows
-warnings that an e-mail failed and will be retried, which you can ignore. To see the e-mails, run
-a test mail server and open its inbox at http://localhost:3000:
+warnings that an e-mail failed and will be retried, which you can ignore. To see the e-mails, install
+and run a test mail server, then open its inbox at http://localhost:3000:
 
 ```powershell
-docker run -d --name oxbox-smtp -p 2525:25 -p 3000:80 rnwood/smtp4dev
+dotnet tool install -g Rnwood.Smtp4dev
+```
+```powershell
+smtp4dev --urls=http://localhost:3000 --smtpport=2525
 ```
 
 SMS are only written to the server's log until an SMS provider is chosen.
@@ -169,5 +158,5 @@ SMS are only written to the server's log until an SMS provider is chosen.
 dotnet test
 ```
 
-This needs Docker running: the database tests start their own temporary PostgreSQL container.
-Without Docker, run `dotnet test --filter "Category!=Integration"`.
+The database tests each create a temporary SQLite file and delete it afterwards. To run only the
+fast unit tests, use `dotnet test --filter "Category!=Integration"`.

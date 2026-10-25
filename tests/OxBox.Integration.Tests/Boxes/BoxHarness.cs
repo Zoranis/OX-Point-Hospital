@@ -46,19 +46,19 @@ internal sealed class BoxHarness
 
     public BoxLink Box { get; }
 
-    public static async Task<BoxHarness> CreateAsync(PostgresFixture postgres)
+    public static async Task<BoxHarness> CreateAsync(SqliteFixture database)
     {
         var defaultBox = new DefaultBoxOptions { Code = "BOX-01", Name = "Box", BuHost = "localhost", PositionCount = 30 };
-        var connectionString = await postgres.CreateMigratedDatabaseAsync(defaultBox, seedDemoData: true);
+        var connectionString = await database.CreateMigratedDatabaseAsync(defaultBox, seedDemoData: true);
 
-        await using var db = PostgresFixture.CreateDbContext(connectionString);
+        await using var db = SqliteFixture.CreateDbContext(connectionString);
         return new BoxHarness(connectionString, (await db.Boxes.SingleAsync()).Id);
     }
 
     /// <summary>Positions are wired in order: slots 1–16 on CU0, 17–30 on CU1.</summary>
     public static LockAddress Slot(int number) => new((number - 1) / 16, ((number - 1) % 16) + 1);
 
-    public OxBoxDbContext Db() => PostgresFixture.CreateDbContext(ConnectionString);
+    public OxBoxDbContext Db() => SqliteFixture.CreateDbContext(ConnectionString);
 
     public Task ScanAsync(string code) => WithEventsAsync(events => events.ScannedAsync(Box, code, CancellationToken.None));
 

@@ -8,8 +8,8 @@ using OxBox.Infrastructure.Persistence;
 namespace OxBox.Infrastructure.Alerts;
 
 /// <summary>
-/// Sends queued alert messages. Each due message is claimed with <c>FOR UPDATE SKIP LOCKED</c>, so
-/// two servers never send the same one; a failure is retried with growing delays (see
+/// Sends queued alert messages. The database is a file of this one server, so this is the only
+/// dispatcher and due messages need no claiming. A failure is retried with growing delays (see
 /// <see cref="OutboxMessage.AttemptFailed"/>), and the error is kept for the alerts page.
 /// </summary>
 internal sealed partial class OutboxDispatcher(
@@ -46,17 +46,13 @@ internal sealed partial class OutboxDispatcher(
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OxBoxDbContext>();
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
+        // No transaction is held while sending, so slow SMTP or SMS never blocks box writes.
         var now = time.GetUtcNow();
         var due = await db.OutboxMessages
-            .FromSql($"""
-                SELECT * FROM "OutboxMessages"
-                WHERE "SentAtUtc" IS NULL AND "NextAttemptAtUtc" <= {now}
-                ORDER BY "Id"
-                LIMIT {BatchSize}
-                FOR UPDATE SKIP LOCKED
-                """)
+            .Where(message => message.SentAtUtc == null && message.NextAttemptAtUtc <= now)
+            .OrderBy(message => message.Id)
+            .Take(BatchSize)
             .ToListAsync(cancellationToken);
 
         foreach (var message in due)
@@ -75,7 +71,6 @@ internal sealed partial class OutboxDispatcher(
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         return due.Count;
     }
 

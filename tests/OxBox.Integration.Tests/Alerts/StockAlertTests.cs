@@ -9,16 +9,16 @@ namespace OxBox.Integration.Tests.Alerts;
 /// Stock alerts follow what is in the box. In the demo data ARO starts with one full cylinder, and
 /// the one alert recipient has both an e-mail address and a phone number.
 /// </summary>
-[Collection(PostgresTestGroup.Name)]
+[Collection(DatabaseTestGroup.Name)]
 [Trait("Category", "Integration")]
-public sealed class StockAlertTests(PostgresFixture postgres) : IAsyncLifetime
+public sealed class StockAlertTests(SqliteFixture database) : IAsyncLifetime
 {
     private const string AroLastFull = "LastFullCylinder:BOX-01:1305";
     private const string AroNoFull = "NoFullCylinder:BOX-01:1305";
 
     private BoxHarness _box = null!;
 
-    public async Task InitializeAsync() => _box = await BoxHarness.CreateAsync(postgres);
+    public async Task InitializeAsync() => _box = await BoxHarness.CreateAsync(database);
 
     public Task DisposeAsync() => Task.CompletedTask;
 

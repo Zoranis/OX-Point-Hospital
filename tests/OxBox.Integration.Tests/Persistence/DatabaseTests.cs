@@ -7,9 +7,9 @@ using OxBox.OxPointProtocol;
 
 namespace OxBox.Integration.Tests.Persistence;
 
-[Collection(PostgresTestGroup.Name)]
+[Collection(DatabaseTestGroup.Name)]
 [Trait("Category", "Integration")]
-public sealed class DatabaseTests(PostgresFixture postgres)
+public sealed class DatabaseTests(SqliteFixture database)
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 15, 8, 0, 0, TimeSpan.Zero);
 
@@ -24,9 +24,9 @@ public sealed class DatabaseTests(PostgresFixture postgres)
     [Fact]
     public async Task Initialize_FreshDatabase_CreatesSettingsAndThirtyPositionBox()
     {
-        var connectionString = await postgres.CreateMigratedDatabaseAsync(RfqBox);
+        var connectionString = await database.CreateMigratedDatabaseAsync(RfqBox);
 
-        await using var db = PostgresFixture.CreateDbContext(connectionString);
+        await using var db = SqliteFixture.CreateDbContext(connectionString);
         var settings = await db.SystemSettings.SingleAsync();
         var box = await db.Boxes.Include(b => b.Positions).SingleAsync();
 
@@ -40,14 +40,14 @@ public sealed class DatabaseTests(PostgresFixture postgres)
     [Fact]
     public async Task Initialize_RunTwice_DoesNotDuplicateData()
     {
-        var connectionString = await postgres.CreateMigratedDatabaseAsync(RfqBox);
+        var connectionString = await database.CreateMigratedDatabaseAsync(RfqBox);
 
-        await using (var db = PostgresFixture.CreateDbContext(connectionString))
+        await using (var db = SqliteFixture.CreateDbContext(connectionString))
         {
-            await PostgresFixture.InitializeAsync(db, RfqBox);
+            await SqliteFixture.InitializeAsync(db, RfqBox);
         }
 
-        await using var check = PostgresFixture.CreateDbContext(connectionString);
+        await using var check = SqliteFixture.CreateDbContext(connectionString);
         (await check.Boxes.CountAsync()).Should().Be(1);
         (await check.SystemSettings.CountAsync()).Should().Be(1);
     }
@@ -55,8 +55,8 @@ public sealed class DatabaseTests(PostgresFixture postgres)
     [Fact]
     public async Task SaveChanges_TwoCylindersInSamePosition_IsRejectedByDatabase()
     {
-        var connectionString = await postgres.CreateMigratedDatabaseAsync(RfqBox);
-        await using var db = PostgresFixture.CreateDbContext(connectionString);
+        var connectionString = await database.CreateMigratedDatabaseAsync(RfqBox);
+        await using var db = SqliteFixture.CreateDbContext(connectionString);
         var position = await db.Positions.FirstAsync();
         var costCentre = new CostCentre("1001", "Surgery");
         var first = new Cylinder("CYL-1", costCentre, CylinderStatus.Empty, CylinderLocation.WithSupplier);
@@ -74,15 +74,15 @@ public sealed class DatabaseTests(PostgresFixture postgres)
     [Fact]
     public async Task SaveChanges_CylinderChangedConcurrently_ThrowsConcurrencyException()
     {
-        var connectionString = await postgres.CreateMigratedDatabaseAsync(RfqBox);
-        await using (var setup = PostgresFixture.CreateDbContext(connectionString))
+        var connectionString = await database.CreateMigratedDatabaseAsync(RfqBox);
+        await using (var setup = SqliteFixture.CreateDbContext(connectionString))
         {
             setup.Cylinders.Add(new Cylinder("CYL-1", new CostCentre("1001", "Surgery"), CylinderStatus.Full, CylinderLocation.AtCostCentre));
             await setup.SaveChangesAsync();
         }
 
-        await using var serverA = PostgresFixture.CreateDbContext(connectionString);
-        await using var serverB = PostgresFixture.CreateDbContext(connectionString);
+        await using var serverA = SqliteFixture.CreateDbContext(connectionString);
+        await using var serverB = SqliteFixture.CreateDbContext(connectionString);
         var cylinderSeenByA = await serverA.Cylinders.SingleAsync();
         var cylinderSeenByB = await serverB.Cylinders.SingleAsync();
 

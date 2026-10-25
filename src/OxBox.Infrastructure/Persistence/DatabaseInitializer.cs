@@ -23,6 +23,10 @@ public sealed partial class DatabaseInitializer(
             await db.Database.MigrateAsync(cancellationToken);
         }
 
+        // Write-ahead logging lets the admin pages read while a box agent writes. The mode is
+        // stored in the file, so this only changes something on the first start.
+        await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken);
+
         await EnsureSystemSettingsAsync(cancellationToken);
         await EnsureDefaultBoxAsync(cancellationToken);
 

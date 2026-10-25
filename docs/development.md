@@ -16,9 +16,9 @@ OxBox.Web ─► OxBox.Infrastructure ─► OxBox.Application ─► OxBox.Doma
 | `src/OxBox.OxPointProtocol` | Messages and commands exchanged with the box's control unit (the BU), in both directions. Pure, no I/O. |
 | `src/OxBox.Domain` | Entities and their rules: cylinders, boxes, positions, cost centres, alerts. |
 | `src/OxBox.Application` | Use cases (exchange, service visit, stock alerts), the per-box `BoxAgent`, and the interfaces they need. |
-| `src/OxBox.Infrastructure` | EF Core + PostgreSQL, the WebSocket connection to the BU, alert outbox and e-mail, report queries and CSV exports. |
+| `src/OxBox.Infrastructure` | EF Core + SQLite, the WebSocket connection to the BU, alert outbox and e-mail, report queries and CSV exports. |
 | `src/OxBox.Web` | ASP.NET Core host: the box's status display (kiosk), the admin web app with roles, and the composition root. |
-| `tools/OxBox.BuSimulator` | A simulated BU with a control page, for demos and manual testing. Not deployed. |
+| `tools/OxBox.BuSimulator` | A simulated BU with a control page, for demos and manual testing. Packaged only for demo installations (`deploy/`). |
 
 Each box has one `BoxAgent`. Every event from the box (a scan, a connection change) goes through
 one queue and is handled one at a time, so two scans can never race each other.
@@ -26,17 +26,20 @@ one queue and is handled one at a time, so two scans can never race each other.
 ## Prerequisites
 
 - .NET SDK 9.0.300 or newer (`global.json` rolls forward to newer SDKs).
-- Docker Desktop, for the demo database and the database integration tests.
+- Nothing else. The database is SQLite, embedded in the server: one file,
+  `src/OxBox.Web/data/oxbox_poc.db`, created on the first start.
+- To change the EF model, use the local `dotnet-ef` tool (`dotnet tool restore` once), e.g.
+  `dotnet ef migrations add <Name> -p src/OxBox.Infrastructure -s src/OxBox.Web -o Persistence/Migrations`.
 
 ## Tests
 
 ```powershell
-dotnet test                                    # everything; needs Docker running
-dotnet test --filter "Category!=Integration"   # no Docker needed
+dotnet test                                    # everything
+dotnet test --filter "Category!=Integration"   # unit tests only
 ```
 
-The integration tests (`Category=Integration`) start their own PostgreSQL container through
-Testcontainers, so they do not touch the demo database.
+The integration tests (`Category=Integration`) each create a temporary SQLite file through the real
+migrations, so they do not touch the demo database.
 
 ## Coding standards
 

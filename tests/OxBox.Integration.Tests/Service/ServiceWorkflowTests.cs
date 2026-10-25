@@ -10,9 +10,9 @@ using static OxBox.Integration.Tests.Boxes.BoxHarness;
 namespace OxBox.Integration.Tests.Service;
 
 /// <summary>A technician's restocking visit, end to end, on the demo box (see <see cref="BoxHarness"/>).</summary>
-[Collection(PostgresTestGroup.Name)]
+[Collection(DatabaseTestGroup.Name)]
 [Trait("Category", "Integration")]
-public sealed class ServiceWorkflowTests(PostgresFixture postgres) : IAsyncLifetime
+public sealed class ServiceWorkflowTests(SqliteFixture database) : IAsyncLifetime
 {
     private const string ServiceCard = "SERVIS-001";
 
@@ -20,7 +20,7 @@ public sealed class ServiceWorkflowTests(PostgresFixture postgres) : IAsyncLifet
 
     private KioskScreen? LastScreen => _box.Display.Last;
 
-    public async Task InitializeAsync() => _box = await BoxHarness.CreateAsync(postgres);
+    public async Task InitializeAsync() => _box = await BoxHarness.CreateAsync(database);
 
     public Task DisposeAsync() => Task.CompletedTask;
 

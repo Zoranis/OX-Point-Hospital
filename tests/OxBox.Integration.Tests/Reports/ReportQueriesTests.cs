@@ -8,9 +8,9 @@ using OxBox.Integration.Tests.Persistence;
 
 namespace OxBox.Integration.Tests.Reports;
 
-[Collection(PostgresTestGroup.Name)]
+[Collection(DatabaseTestGroup.Name)]
 [Trait("Category", "Integration")]
-public sealed class ReportQueriesTests(PostgresFixture postgres) : IAsyncLifetime
+public sealed class ReportQueriesTests(SqliteFixture database) : IAsyncLifetime
 {
     private string _connectionString = null!;
     private ReportQueries _reports = null!;
@@ -18,8 +18,8 @@ public sealed class ReportQueriesTests(PostgresFixture postgres) : IAsyncLifetim
     public async Task InitializeAsync()
     {
         var defaultBox = new DefaultBoxOptions { Code = "BOX-01", Name = "Box", BuHost = "localhost", PositionCount = 30 };
-        _connectionString = await postgres.CreateMigratedDatabaseAsync(defaultBox, seedDemoData: true);
-        var options = new DbContextOptionsBuilder<OxBoxDbContext>().UseNpgsql(_connectionString).Options;
+        _connectionString = await database.CreateMigratedDatabaseAsync(defaultBox, seedDemoData: true);
+        var options = new DbContextOptionsBuilder<OxBoxDbContext>().UseSqlite(_connectionString).Options;
         _reports = new ReportQueries(new PooledDbContextFactory<OxBoxDbContext>(options));
     }
 
@@ -59,7 +59,7 @@ public sealed class ReportQueriesTests(PostgresFixture postgres) : IAsyncLifetim
 
     private async Task AddDispenseAsync(string costCentre, DateTimeOffset atUtc)
     {
-        await using var db = PostgresFixture.CreateDbContext(_connectionString);
+        await using var db = SqliteFixture.CreateDbContext(_connectionString);
         db.CylinderTransactions.Add(new CylinderTransaction(atUtc, CylinderAction.Dispense, "BOX-01", 1, "O2-TEST", costCentre, 9201));
         await db.SaveChangesAsync();
     }

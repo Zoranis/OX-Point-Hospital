@@ -11,12 +11,12 @@ using static OxBox.Integration.Tests.Boxes.BoxHarness;
 namespace OxBox.Integration.Tests.Exchange;
 
 /// <summary>
-/// Drives the exchange workflow end to end against PostgreSQL and the demo data set (see
+/// Drives the exchange workflow end to end against SQLite and the demo data set (see
 /// <see cref="BoxHarness"/>). Every scan runs in a fresh unit of work, as in the box agent.
 /// </summary>
-[Collection(PostgresTestGroup.Name)]
+[Collection(DatabaseTestGroup.Name)]
 [Trait("Category", "Integration")]
-public sealed class ExchangeWorkflowTests(PostgresFixture postgres) : IAsyncLifetime
+public sealed class ExchangeWorkflowTests(SqliteFixture database) : IAsyncLifetime
 {
     private BoxHarness _box = null!;
 
@@ -24,7 +24,7 @@ public sealed class ExchangeWorkflowTests(PostgresFixture postgres) : IAsyncLife
 
     private KioskScreen? LastScreen => _box.Display.Last;
 
-    public async Task InitializeAsync() => _box = await BoxHarness.CreateAsync(postgres);
+    public async Task InitializeAsync() => _box = await BoxHarness.CreateAsync(database);
 
     public Task DisposeAsync() => Task.CompletedTask;
 

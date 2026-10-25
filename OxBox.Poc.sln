@@ -3,6 +3,8 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OxBox.Web", "src\OxBox.Web\OxBox.Web.csproj", "{9D7DA7CF-5453-4BF4-808C-B1227731AA3D}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OxBox.Application", "src\OxBox.Application\OxBox.Application.csproj", "{DF417124-F633-4945-B362-B853162F51C9}"
@@ -12,8 +14,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OxBox.Infrastructure", "src\OxBox.Infrastructure\OxBox.Infrastructure.csproj", "{2C5F6BB6-3C41-421F-BFF5-2AA60C71264D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OxBox.OxPointProtocol", "src\OxBox.OxPointProtocol\OxBox.OxPointProtocol.csproj", "{5918BAC1-E546-44B5-ADBA-2FDA1EE195BC}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OxBox.Web", "src\OxBox.Web\OxBox.Web.csproj", "{9D7DA7CF-5453-4BF4-808C-B1227731AA3D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OxBox.BuSimulator", "tools\OxBox.BuSimulator\OxBox.BuSimulator.csproj", "{B0865B98-41ED-4812-ACF5-38CDC23E915A}"
 EndProject

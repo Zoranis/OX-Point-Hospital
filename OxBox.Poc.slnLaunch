@@ -1,0 +1,16 @@
+[
+  {
+    "Name": "Simulator + Web",
+    "Projects": [
+      {
+        "Path": "tools\OxBox.BuSimulator\OxBox.BuSimulator.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "src\OxBox.Web\OxBox.Web.csproj",
+        "Action": "Start",
+        "DebugTarget": "http"
+      }
+    ]
+  }
+]

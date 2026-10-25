@@ -10,9 +10,9 @@ using OxBox.Integration.Tests.Persistence;
 
 namespace OxBox.Integration.Tests.Alerts;
 
-[Collection(PostgresTestGroup.Name)]
+[Collection(DatabaseTestGroup.Name)]
 [Trait("Category", "Integration")]
-public sealed class OutboxDispatcherTests(PostgresFixture postgres) : IAsyncLifetime
+public sealed class OutboxDispatcherTests(SqliteFixture database) : IAsyncLifetime
 {
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 15, 8, 0, 0, TimeSpan.Zero));
     private readonly FlakySender _sender = new();
@@ -20,9 +20,9 @@ public sealed class OutboxDispatcherTests(PostgresFixture postgres) : IAsyncLife
 
     public async Task InitializeAsync()
     {
-        var connectionString = await postgres.CreateMigratedDatabaseAsync();
+        var connectionString = await database.CreateMigratedDatabaseAsync();
         _services = new ServiceCollection()
-            .AddDbContext<OxBoxDbContext>(options => options.UseNpgsql(connectionString))
+            .AddDbContext<OxBoxDbContext>(options => options.UseSqlite(connectionString))
             .BuildServiceProvider();
 
         await using var scope = _services.CreateAsyncScope();

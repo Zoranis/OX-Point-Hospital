@@ -1,7 +1,14 @@
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using OxBox.BuSimulator;
 
-var builder = WebApplication.CreateBuilder(args);
+// A Windows service starts in System32, so its settings and pages are taken from the exe's folder.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : null,
+});
+builder.Services.AddWindowsService(service => service.ServiceName = "OxBoxSimulator");
 
 var options = builder.Configuration.GetSection(SimulatorOptions.SectionName).Get<SimulatorOptions>() ?? new SimulatorOptions();
 builder.Services.Configure<SimulatorOptions>(builder.Configuration.GetSection(SimulatorOptions.SectionName));

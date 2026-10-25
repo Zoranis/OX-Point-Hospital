@@ -1,6 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -16,10 +14,10 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "AspNetRoles",
                 columns: table => new
                 {
-                    Id = table.Column<string>(type: "text", nullable: false),
-                    Name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    NormalizedName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: "text", nullable: true)
+                    Id = table.Column<string>(type: "TEXT", nullable: false),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    NormalizedName = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -30,21 +28,21 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "AspNetUsers",
                 columns: table => new
                 {
-                    Id = table.Column<string>(type: "text", nullable: false),
-                    UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    NormalizedEmail = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    EmailConfirmed = table.Column<bool>(type: "boolean", nullable: false),
-                    PasswordHash = table.Column<string>(type: "text", nullable: true),
-                    SecurityStamp = table.Column<string>(type: "text", nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: "text", nullable: true),
-                    PhoneNumber = table.Column<string>(type: "text", nullable: true),
-                    PhoneNumberConfirmed = table.Column<bool>(type: "boolean", nullable: false),
-                    TwoFactorEnabled = table.Column<bool>(type: "boolean", nullable: false),
-                    LockoutEnd = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    LockoutEnabled = table.Column<bool>(type: "boolean", nullable: false),
-                    AccessFailedCount = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<string>(type: "TEXT", nullable: false),
+                    UserName = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    NormalizedUserName = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    Email = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    NormalizedEmail = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    EmailConfirmed = table.Column<bool>(type: "INTEGER", nullable: false),
+                    PasswordHash = table.Column<string>(type: "TEXT", nullable: true),
+                    SecurityStamp = table.Column<string>(type: "TEXT", nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "TEXT", nullable: true),
+                    PhoneNumber = table.Column<string>(type: "TEXT", nullable: true),
+                    PhoneNumberConfirmed = table.Column<bool>(type: "INTEGER", nullable: false),
+                    TwoFactorEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
+                    LockoutEnd = table.Column<long>(type: "INTEGER", nullable: true),
+                    LockoutEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
+                    AccessFailedCount = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -55,13 +53,13 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "Boxes",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Code = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    Site = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    BuHost = table.Column<string>(type: "character varying(253)", maxLength: 253, nullable: false),
-                    BuPort = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Code = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    Site = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
+                    BuHost = table.Column<string>(type: "TEXT", maxLength: 253, nullable: false),
+                    BuPort = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -72,12 +70,12 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "CostCentres",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Code = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
-                    LowStockThreshold = table.Column<int>(type: "integer", nullable: true)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Code = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
+                    LowStockThreshold = table.Column<int>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -88,11 +86,11 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "SystemSettings",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false),
-                    FullFlag = table.Column<int>(type: "integer", nullable: false),
-                    EmptyFlag = table.Column<int>(type: "integer", nullable: false),
-                    DisplayTimeZoneId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    LowStockThreshold = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false),
+                    FullFlag = table.Column<int>(type: "INTEGER", nullable: false),
+                    EmptyFlag = table.Column<int>(type: "INTEGER", nullable: false),
+                    DisplayTimeZoneId = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
+                    LowStockThreshold = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -104,11 +102,11 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "Technicians",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    ServiceBarcode = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    ServiceBarcode = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -119,11 +117,11 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "AspNetRoleClaims",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    RoleId = table.Column<string>(type: "text", nullable: false),
-                    ClaimType = table.Column<string>(type: "text", nullable: true),
-                    ClaimValue = table.Column<string>(type: "text", nullable: true)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    RoleId = table.Column<string>(type: "TEXT", nullable: false),
+                    ClaimType = table.Column<string>(type: "TEXT", nullable: true),
+                    ClaimValue = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -140,11 +138,11 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "AspNetUserClaims",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    UserId = table.Column<string>(type: "text", nullable: false),
-                    ClaimType = table.Column<string>(type: "text", nullable: true),
-                    ClaimValue = table.Column<string>(type: "text", nullable: true)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    UserId = table.Column<string>(type: "TEXT", nullable: false),
+                    ClaimType = table.Column<string>(type: "TEXT", nullable: true),
+                    ClaimValue = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -161,10 +159,10 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "AspNetUserLogins",
                 columns: table => new
                 {
-                    LoginProvider = table.Column<string>(type: "text", nullable: false),
-                    ProviderKey = table.Column<string>(type: "text", nullable: false),
-                    ProviderDisplayName = table.Column<string>(type: "text", nullable: true),
-                    UserId = table.Column<string>(type: "text", nullable: false)
+                    LoginProvider = table.Column<string>(type: "TEXT", nullable: false),
+                    ProviderKey = table.Column<string>(type: "TEXT", nullable: false),
+                    ProviderDisplayName = table.Column<string>(type: "TEXT", nullable: true),
+                    UserId = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -181,8 +179,8 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "AspNetUserRoles",
                 columns: table => new
                 {
-                    UserId = table.Column<string>(type: "text", nullable: false),
-                    RoleId = table.Column<string>(type: "text", nullable: false)
+                    UserId = table.Column<string>(type: "TEXT", nullable: false),
+                    RoleId = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -205,10 +203,10 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "AspNetUserTokens",
                 columns: table => new
                 {
-                    UserId = table.Column<string>(type: "text", nullable: false),
-                    LoginProvider = table.Column<string>(type: "text", nullable: false),
-                    Name = table.Column<string>(type: "text", nullable: false),
-                    Value = table.Column<string>(type: "text", nullable: true)
+                    UserId = table.Column<string>(type: "TEXT", nullable: false),
+                    LoginProvider = table.Column<string>(type: "TEXT", nullable: false),
+                    Name = table.Column<string>(type: "TEXT", nullable: false),
+                    Value = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -225,13 +223,13 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "Positions",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    BoxId = table.Column<int>(type: "integer", nullable: false),
-                    Number = table.Column<int>(type: "integer", nullable: false),
-                    Board = table.Column<int>(type: "integer", nullable: false),
-                    LockNumber = table.Column<int>(type: "integer", nullable: false),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    BoxId = table.Column<int>(type: "INTEGER", nullable: false),
+                    Number = table.Column<int>(type: "INTEGER", nullable: false),
+                    Board = table.Column<int>(type: "INTEGER", nullable: false),
+                    LockNumber = table.Column<int>(type: "INTEGER", nullable: false),
+                    Version = table.Column<long>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -248,14 +246,14 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "AlertRecipients",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    Phone = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: true),
-                    CostCentreId = table.Column<int>(type: "integer", nullable: true),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    Email = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    Phone = table.Column<string>(type: "TEXT", maxLength: 32, nullable: true),
+                    CostCentreId = table.Column<int>(type: "INTEGER", nullable: true),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
+                    Version = table.Column<long>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -272,16 +270,16 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "Alerts",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Kind = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: false),
-                    Key = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    BoxCode = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    CostCentreId = table.Column<int>(type: "integer", nullable: false),
-                    Details = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
-                    RaisedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    ClearedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
+                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Kind = table.Column<string>(type: "TEXT", maxLength: 30, nullable: false),
+                    Key = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
+                    BoxCode = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
+                    CostCentreId = table.Column<int>(type: "INTEGER", nullable: false),
+                    Details = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
+                    RaisedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    ClearedAtUtc = table.Column<long>(type: "INTEGER", nullable: true),
+                    Version = table.Column<long>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -298,16 +296,16 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "CylinderTransactions",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    AtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    Action = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: false),
-                    BoxCode = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    PositionNumber = table.Column<int>(type: "integer", nullable: false),
-                    Barcode = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    CostCentreCode = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    FlagAtTime = table.Column<int>(type: "integer", nullable: false),
-                    TechnicianId = table.Column<int>(type: "integer", nullable: true)
+                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    AtUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    Action = table.Column<string>(type: "TEXT", maxLength: 30, nullable: false),
+                    BoxCode = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
+                    PositionNumber = table.Column<int>(type: "INTEGER", nullable: false),
+                    Barcode = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
+                    CostCentreCode = table.Column<string>(type: "TEXT", maxLength: 32, nullable: false),
+                    FlagAtTime = table.Column<int>(type: "INTEGER", nullable: false),
+                    TechnicianId = table.Column<int>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -324,15 +322,15 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "Cylinders",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Barcode = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    CostCentreId = table.Column<int>(type: "integer", nullable: false),
-                    Status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    Location = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    PositionId = table.Column<int>(type: "integer", nullable: true),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
-                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Barcode = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
+                    CostCentreId = table.Column<int>(type: "INTEGER", nullable: false),
+                    Status = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
+                    Location = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
+                    PositionId = table.Column<int>(type: "INTEGER", nullable: true),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
+                    Version = table.Column<long>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -355,18 +353,18 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "OutboxMessages",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    AlertId = table.Column<long>(type: "bigint", nullable: false),
-                    Channel = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
-                    Recipient = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    Subject = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
-                    Body = table.Column<string>(type: "text", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    Attempts = table.Column<int>(type: "integer", nullable: false),
-                    NextAttemptAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    SentAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    LastError = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true)
+                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    AlertId = table.Column<long>(type: "INTEGER", nullable: false),
+                    Channel = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
+                    Recipient = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
+                    Subject = table.Column<string>(type: "TEXT", maxLength: 300, nullable: false),
+                    Body = table.Column<string>(type: "TEXT", nullable: false),
+                    CreatedAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    Attempts = table.Column<int>(type: "INTEGER", nullable: false),
+                    NextAttemptAtUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    SentAtUtc = table.Column<long>(type: "INTEGER", nullable: true),
+                    LastError = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -383,15 +381,15 @@ namespace OxBox.Infrastructure.Persistence.Migrations
                 name: "CylinderStatusChanges",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    CylinderId = table.Column<int>(type: "integer", nullable: false),
-                    AtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    Reason = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: false),
-                    FromStatus = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    FromLocation = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    ToStatus = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    ToLocation = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false)
+                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    CylinderId = table.Column<int>(type: "INTEGER", nullable: false),
+                    AtUtc = table.Column<long>(type: "INTEGER", nullable: false),
+                    Reason = table.Column<string>(type: "TEXT", maxLength: 30, nullable: false),
+                    FromStatus = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
+                    FromLocation = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
+                    ToStatus = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
+                    ToLocation = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false)
                 },
                 constraints: table =>
                 {

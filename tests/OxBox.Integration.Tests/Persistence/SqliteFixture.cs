@@ -1,29 +1,37 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Npgsql;
 using OxBox.Infrastructure.Persistence;
-using Testcontainers.PostgreSql;
 
 namespace OxBox.Integration.Tests.Persistence;
 
-/// <summary>One PostgreSQL container for the whole test run. Each test class gets its own database.</summary>
-public sealed class PostgresFixture : IAsyncLifetime
+/// <summary>A temporary folder of SQLite files for the whole test run. Each test class gets its own database file.</summary>
+public sealed class SqliteFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
-        .Build();
+    private readonly string _folder = Path.Combine(Path.GetTempPath(), $"oxbox_tests_{Guid.NewGuid():N}");
 
-    public Task InitializeAsync() => _container.StartAsync();
+    public Task InitializeAsync()
+    {
+        Directory.CreateDirectory(_folder);
+        return Task.CompletedTask;
+    }
 
-    public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+    public Task DisposeAsync()
+    {
+        // Pooled connections keep the files open.
+        SqliteConnection.ClearAllPools();
+        Directory.Delete(_folder, recursive: true);
+        return Task.CompletedTask;
+    }
 
     /// <summary>Creates an empty database, applies all migrations and seeds it as the app would at startup.</summary>
     public async Task<string> CreateMigratedDatabaseAsync(DefaultBoxOptions? defaultBox = null, bool seedDemoData = false)
     {
-        var connectionString = new NpgsqlConnectionStringBuilder(_container.GetConnectionString())
+        var connectionString = new SqliteConnectionStringBuilder
         {
-            Database = $"oxbox_test_{Guid.NewGuid():N}",
+            DataSource = Path.Combine(_folder, $"oxbox_test_{Guid.NewGuid():N}.db"),
+            DefaultTimeout = 30,
         }.ConnectionString;
 
         await using var db = CreateDbContext(connectionString);
@@ -32,7 +40,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 
     public static OxBoxDbContext CreateDbContext(string connectionString) =>
-        new(new DbContextOptionsBuilder<OxBoxDbContext>().UseNpgsql(connectionString).Options);
+        new(new DbContextOptionsBuilder<OxBoxDbContext>().UseSqlite(connectionString).Options);
 
     public static Task InitializeAsync(OxBoxDbContext db, DefaultBoxOptions? defaultBox, bool seedDemoData = false)
     {
@@ -44,7 +52,7 @@ public sealed class PostgresFixture : IAsyncLifetime
 }
 
 [CollectionDefinition(Name)]
-public sealed class PostgresTestGroup : ICollectionFixture<PostgresFixture>
+public sealed class DatabaseTestGroup : ICollectionFixture<SqliteFixture>
 {
-    public const string Name = "Postgres";
+    public const string Name = "Database";
 }
