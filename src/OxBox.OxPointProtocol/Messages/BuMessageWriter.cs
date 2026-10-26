@@ -17,6 +17,7 @@ public static class BuMessageWriter
             [WireNames.Board] = reply.Lock.Board,
             [WireNames.Lock] = reply.Lock.LockNumber,
         }.ToJsonString(),
+        LockOpenAcknowledged ack => Object(WireNames.Response, ack.Response),
         LockStatusReply status => new JsonObject
         {
             [WireNames.Response] = status.Locks.Bits,

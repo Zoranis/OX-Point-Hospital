@@ -13,6 +13,13 @@ public sealed class BuConnectionOptions
     [Range(typeof(TimeSpan), "00:00:00.100", "00:00:30")]
     public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// How long a command waits for a dropped link to come back before it fails. The real BU
+    /// drops its link every 20–30 s and is back within about 8 s.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "00:01:00")]
+    public TimeSpan ReconnectWait { get; set; } = TimeSpan.FromSeconds(10);
+
     [Range(typeof(TimeSpan), "00:00:00.100", "00:01:00")]
     public TimeSpan InitialReconnectDelay { get; set; } = TimeSpan.FromSeconds(1);
 

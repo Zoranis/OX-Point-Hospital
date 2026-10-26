@@ -7,6 +7,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject TimeProvider Time
+@inject IHostEnvironment Environment
 
 @if (!_languageKnown)
 {
@@ -88,6 +89,13 @@ else
         _languageKnown = true;
         UpdateView();
         StateHasChanged();
+
+        // See KioskEndpoints: a reader on this PC can scan at the display, in development only.
+        if (Environment.IsDevelopment())
+        {
+            var scanUrl = Navigation.ToAbsoluteUri($"kiosk/{Uri.EscapeDataString(BoxCode)}/scan").ToString();
+            await JS.InvokeVoidAsync("oxboxKiosk.captureScans", scanUrl);
+        }
     }
 
     public void Dispose()

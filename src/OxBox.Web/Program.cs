@@ -66,5 +66,6 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.MapAdditionalIdentityEndpoints();
 app.MapAdminEndpoints();
+app.MapKioskEndpoints();
 
 await app.RunAsync();

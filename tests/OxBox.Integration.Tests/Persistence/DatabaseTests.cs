@@ -38,6 +38,19 @@ public sealed class DatabaseTests(SqliteFixture database)
     }
 
     [Fact]
+    public async Task Initialize_DemoBoxBarcodesSet_PutsOnlyThoseCylindersFullInTheBox()
+    {
+        var connectionString = await database.CreateMigratedDatabaseAsync(RfqBox, seedDemoData: true, demoBoxBarcodes: ["O2-ARO-04", "O2-ARO-05"]);
+
+        await using var db = SqliteFixture.CreateDbContext(connectionString);
+        var inBox = await db.Cylinders.Where(c => c.Location == CylinderLocation.InBox).ToListAsync();
+        var slots = await db.Positions.ToDictionaryAsync(p => p.Id, p => p.Number);
+
+        inBox.Select(c => (c.Barcode, slots[c.PositionId!.Value], c.Status)).Should().BeEquivalentTo(
+            [("O2-ARO-04", 1, CylinderStatus.Full), ("O2-ARO-05", 2, CylinderStatus.Full)]);
+    }
+
+    [Fact]
     public async Task Initialize_RunTwice_DoesNotDuplicateData()
     {
         var connectionString = await database.CreateMigratedDatabaseAsync(RfqBox);

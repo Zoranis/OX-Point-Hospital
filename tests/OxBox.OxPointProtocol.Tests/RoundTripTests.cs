@@ -15,6 +15,7 @@ public class RoundTripTests
         new ScanReceived("123456", ScanSource.Rfid),
         new ScanReceived("987654321012345", ScanSource.Keypad),
         new LockOpenReply(new LockAddress(9, 16), Succeeded: true, "OK"),
+        new LockOpenAcknowledged(Succeeded: true, "OK"),
         new LockStatusReply(1, new LockMask(44975)),
         new RelayAcknowledged(),
         new DoorContactReply(IsClosed: true),

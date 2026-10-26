@@ -99,6 +99,40 @@ alerts still show in the web app.
 - **Start over with fresh demo data:** stop the OxBox service, delete the `server\data` folder, and
   start the service again.
 
+## Connecting a real BU
+
+The demo talks to the simulator. To use a real OX Point BU instead:
+
+1. **Find its address.** Plug the BU's USB-C port into the PC. It appears as a new COM port
+   ("USB Serial Device"). Open it with any serial terminal (115200 baud) and type `get ip` and
+   `get port`. `help` lists the other commands; avoid `set ...`, which changes the BU. The BU
+   tested on 26 Oct 2026 was at `172.16.1.9`, port `3030`, firmware `13.IO2.01`. Unplug the
+   USB-C cable afterwards; it is not needed to run the box.
+2. **Give the PC an address on the BU's network.** The BU does not hand out addresses. In
+   Settings → Network & internet → Ethernet → (the adapter the BU is plugged into) → IP
+   assignment, choose Manual, IPv4, for example `172.16.1.10` with mask `255.255.255.0` and no
+   gateway. This needs administrator rights.
+3. **Point the box at the BU.** In `server\appsettings.Production.json`, set
+   `Database` → `DefaultBox` → `BuHost` to the BU's IP. The box is only created when the database
+   is empty (see **Settings**), so on an existing installation stop the service, delete the
+   `server\data\oxbox.db*` files (this deletes all recorded data) and start it again. The web app
+   cannot yet change an existing box's address. The server connects within a few seconds; the
+   BU's serial console then shows `Websocket status: Connected`.
+
+**A barcode reader plugged into the PC instead of the BU.** When the server runs in Development
+(started from the source with `dotnet run`, not from this package), the **Boxes** page has a
+**Test scan** field for administrators. Click it and scan: the code is handled exactly as if the
+BU had read it, so real locks open, and the server log records who scanned it. The installed
+package runs in Production and does not show the field.
+
+**Known issue: the BU drops the link every 20–30 seconds.** The tested BU resets its network link
+roughly 20–30 s after each connection and is back within 2–8 s. The server rides this out: a lock
+or lamp command waits up to `BuConnection__ReconnectWait` (10 s) for the link and is sent again
+if the link drops before the reply, and the display only says "out of service" after the link has
+been down for `Box__OfflineScreenDelay` (15 s). Two things remain: a barcode scanned in the few
+seconds the link is down is lost, so the user scans again; and the dashboard and the server log
+show the box going offline and back each time. The cause is not known yet; ask the BU supplier.
+
 ## Updating to a new version
 
 1. Build a new package and copy it to the target PC.

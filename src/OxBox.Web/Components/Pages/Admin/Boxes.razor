@@ -6,6 +6,7 @@
 @inject BoxStatusBoard StatusBoard
 @inject IBoxAgents Agents
 @inject TimeProvider Time
+@inject IHostEnvironment Environment
 
 <PageTitle>Boxes · OxBox</PageTitle>
 
@@ -30,6 +31,32 @@
         }
     </tbody>
 </table>
+
+@if (Environment.IsDevelopment() && _boxes.Count > 0)
+{
+    <section class="card border-warning mb-3">
+        <div class="card-body">
+            <h2 class="h5">Test scan <span class="badge text-bg-warning align-middle">development only</span></h2>
+            <p class="small text-muted">For a barcode reader plugged into this PC instead of the BU. The code is handled exactly as if the box's BU had read it, so real locks open. Click the field and scan.</p>
+            <form class="row g-2 align-items-end" @onsubmit="ScanAsync">
+                <div class="col-md-2">
+                    <label class="form-label" for="scan-box">Box</label>
+                    <select id="scan-box" class="form-select" @bind="_scanBoxId">
+                        @foreach (var box in _boxes)
+                        {
+                            <option value="@box.Id">@box.Code</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="scan-code">Barcode</label>
+                    <input id="scan-code" class="form-control" autocomplete="off" @ref="_scanInput" @bind="_scanCode" @bind:event="oninput" />
+                </div>
+                <div class="col-md-2"><button type="submit" class="btn btn-warning w-100">Scan</button></div>
+            </form>
+        </div>
+    </section>
+}
 
 <section class="card">
     <div class="card-body">
@@ -61,6 +88,9 @@
     private string? _message;
     private bool _ok;
     private string _userName = string.Empty;
+    private int _scanBoxId;
+    private string _scanCode = string.Empty;
+    private ElementReference _scanInput;
 
     [CascadingParameter]
     private Task<AuthenticationState> AuthenticationState { get; set; } = null!;
@@ -75,6 +105,27 @@
     {
         await using var db = await Contexts.CreateDbContextAsync();
         _boxes = await db.Boxes.AsNoTracking().Include(b => b.Positions).OrderBy(b => b.Code).ToListAsync();
+        if (_boxes.All(b => b.Id != _scanBoxId))
+        {
+            _scanBoxId = _boxes.FirstOrDefault()?.Id ?? 0;
+        }
+    }
+
+    private async Task ScanAsync()
+    {
+        var code = _scanCode.Trim();
+        _scanCode = string.Empty;
+        if (!Environment.IsDevelopment() || code.Length == 0)
+        {
+            return;
+        }
+
+        var boxCode = _boxes.FirstOrDefault(b => b.Id == _scanBoxId)?.Code;
+        var sent = await Agents.SimulateScanAsync(_scanBoxId, code, _userName, CancellationToken.None);
+        Report(sent, sent
+            ? $"Scanned {code} at box {boxCode}. Its display shows what happened."
+            : $"This server does not run box {boxCode}.");
+        await _scanInput.FocusAsync();
     }
 
     private async Task AddAsync()

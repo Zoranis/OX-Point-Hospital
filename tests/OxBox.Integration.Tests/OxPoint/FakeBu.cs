@@ -21,6 +21,7 @@ internal sealed class FakeBu : IAsyncDisposable
     private readonly ConcurrentQueue<string> _received = new();
     private readonly TaskCompletionSource _clientConnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private WebSocket? _client;
+    private int _dropNextCommand;
     private bool _disposed;
 
     private FakeBu(WebApplication app) => _app = app;
@@ -50,6 +51,9 @@ internal sealed class FakeBu : IAsyncDisposable
     }
 
     public Task WaitForClientAsync() => _clientConnected.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+    /// <summary>Drops the link when the next command arrives, before answering it, as the real BU does now and then.</summary>
+    public void DropLinkOnNextCommand() => Volatile.Write(ref _dropNextCommand, 1);
 
     public Task PushAsync(string json) =>
         _client!.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, endOfMessage: true, CancellationToken.None);
@@ -101,6 +105,12 @@ internal sealed class FakeBu : IAsyncDisposable
 
             var command = Encoding.UTF8.GetString(buffer, 0, result.Count);
             _received.Enqueue(command);
+
+            if (Interlocked.Exchange(ref _dropNextCommand, 0) == 1)
+            {
+                socket.Abort();
+                return;
+            }
 
             if (Respond(command) is { } reply)
             {

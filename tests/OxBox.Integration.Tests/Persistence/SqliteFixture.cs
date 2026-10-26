@@ -26,7 +26,8 @@ public sealed class SqliteFixture : IAsyncLifetime
     }
 
     /// <summary>Creates an empty database, applies all migrations and seeds it as the app would at startup.</summary>
-    public async Task<string> CreateMigratedDatabaseAsync(DefaultBoxOptions? defaultBox = null, bool seedDemoData = false)
+    public async Task<string> CreateMigratedDatabaseAsync(
+        DefaultBoxOptions? defaultBox = null, bool seedDemoData = false, IReadOnlyList<string>? demoBoxBarcodes = null)
     {
         var connectionString = new SqliteConnectionStringBuilder
         {
@@ -35,16 +36,23 @@ public sealed class SqliteFixture : IAsyncLifetime
         }.ConnectionString;
 
         await using var db = CreateDbContext(connectionString);
-        await InitializeAsync(db, defaultBox, seedDemoData);
+        await InitializeAsync(db, defaultBox, seedDemoData, demoBoxBarcodes);
         return connectionString;
     }
 
     public static OxBoxDbContext CreateDbContext(string connectionString) =>
         new(new DbContextOptionsBuilder<OxBoxDbContext>().UseSqlite(connectionString).Options);
 
-    public static Task InitializeAsync(OxBoxDbContext db, DefaultBoxOptions? defaultBox, bool seedDemoData = false)
+    public static Task InitializeAsync(
+        OxBoxDbContext db, DefaultBoxOptions? defaultBox, bool seedDemoData = false, IReadOnlyList<string>? demoBoxBarcodes = null)
     {
-        var options = Options.Create(new DatabaseOptions { MigrateOnStartup = true, DefaultBox = defaultBox, SeedDemoData = seedDemoData });
+        var options = Options.Create(new DatabaseOptions
+        {
+            MigrateOnStartup = true,
+            DefaultBox = defaultBox,
+            SeedDemoData = seedDemoData,
+            DemoBoxBarcodes = [.. demoBoxBarcodes ?? []],
+        });
         var demoData = new DemoDataSeeder(db, TimeProvider.System, NullLogger<DemoDataSeeder>.Instance);
         return new DatabaseInitializer(db, demoData, options, NullLogger<DatabaseInitializer>.Instance)
             .InitializeAsync(CancellationToken.None);

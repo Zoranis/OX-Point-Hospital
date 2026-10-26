@@ -11,6 +11,13 @@ public sealed record ScanReceived(string Code, ScanSource Source) : BuMessage;
 /// <summary>Reply to <c>Open</c>: <c>{"Response": "OK", "Board": 9, "Lock": 16}</c>.</summary>
 public sealed record LockOpenReply(LockAddress Lock, bool Succeeded, string Response) : BuMessage;
 
+/// <summary>
+/// Reply to <c>Open</c> without the lock: <c>{"Response": "OK"}</c>. BU firmware 13.IO2.01 sends
+/// this instead of the documented <see cref="LockOpenReply"/>. Only one command is in flight at a
+/// time, so it answers that one.
+/// </summary>
+public sealed record LockOpenAcknowledged(bool Succeeded, string Response) : BuMessage;
+
 /// <summary>Reply to <c>Request</c>: <c>{"Response": 44975, "Board": 9}</c>.</summary>
 public sealed record LockStatusReply(int Board, LockMask Locks) : BuMessage;
 

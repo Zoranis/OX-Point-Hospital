@@ -46,6 +46,14 @@ public class BuMessageParserTests
     }
 
     [Fact]
+    public void Parse_LockOpenWithoutBoardAndLock_ReturnsAcknowledgement()
+    {
+        var message = BuMessageParser.Parse("""{ "Response" : "OK" }""");
+
+        message.Should().Be(new LockOpenAcknowledged(Succeeded: true, "OK"));
+    }
+
+    [Fact]
     public void Parse_LockOpenWithOtherResponse_ReturnsFailedOpenReply()
     {
         var message = BuMessageParser.Parse("""{ "Response" : "ERR", "Board" : 0, "Lock" : 1 }""");
@@ -96,7 +104,6 @@ public class BuMessageParserTests
     [InlineData("""{ "Response" : "OK", "Board" : 10, "Lock" : 1 }""")]
     [InlineData("""{ "Response" : "OK", "Board" : 0, "Lock" : 17 }""")]
     [InlineData("""{ "Response" : 70000, "Board" : 0 }""")]
-    [InlineData("""{ "Response" : "OK" }""")]
     [InlineData("""{ "QR" : "" }""")]
     public void Parse_UnexpectedInput_ReturnsUnrecognizedWithoutThrowing(string json)
     {

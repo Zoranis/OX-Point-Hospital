@@ -73,6 +73,15 @@ public static class BuMessageParser
     // and a number (the lock bitmask) for a lock-status reply.
     private static BuMessage? ParseResponse(JsonElement root, JsonElement response)
     {
+        // Firmware 13.IO2.01 answers an open with the response text alone.
+        if (response.ValueKind == JsonValueKind.String
+            && !root.TryGetProperty(WireNames.Board, out _)
+            && !root.TryGetProperty(WireNames.Lock, out _))
+        {
+            var ack = response.GetString()!;
+            return new LockOpenAcknowledged(Succeeded: ack == WireNames.Ok, ack);
+        }
+
         if (!Json.TryGetInt(root, WireNames.Board, out var board) || !OxPointLimits.IsValidBoard(board))
         {
             return null;

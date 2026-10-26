@@ -45,6 +45,25 @@ internal sealed partial class BoxSupervisor(
         }
     }
 
+    public async Task<bool> SimulateScanAsync(int boxId, string code, string userName, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!_agents.TryGetValue(boxId, out var running))
+            {
+                return false;
+            }
+
+            running.Agent.SimulateScan(code, userName);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public override void Dispose()
     {
         _gate.Dispose();
@@ -92,7 +111,7 @@ internal sealed partial class BoxSupervisor(
     {
         var stopping = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         var agent = ActivatorUtilities.CreateInstance<BoxAgent>(services, box);
-        _agents[box.BoxId] = new RunningAgent(stopping, Task.Run(() => agent.RunAsync(stopping.Token), CancellationToken.None));
+        _agents[box.BoxId] = new RunningAgent(agent, stopping, Task.Run(() => agent.RunAsync(stopping.Token), CancellationToken.None));
         LogAgentStarted(box.BoxCode, box.Host, box.Port);
     }
 
@@ -114,7 +133,7 @@ internal sealed partial class BoxSupervisor(
         }
     }
 
-    private sealed record RunningAgent(CancellationTokenSource Stopping, Task Run)
+    private sealed record RunningAgent(BoxAgent Agent, CancellationTokenSource Stopping, Task Run)
     {
         public async Task StopAsync()
         {

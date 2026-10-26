@@ -18,6 +18,13 @@ public sealed partial class BuConnection : IBoxGateway
     // Documented BU messages are tiny; anything larger is a fault, not data.
     private const int MaxMessageBytes = 4 * 1024;
 
+    // A command is sent again at most once, after the link dropped before its reply came.
+    private const int MaxSendAttempts = 2;
+
+    // How often a waiting command looks again when the socket has closed but the receive loop
+    // has not yet reported the drop.
+    private static readonly TimeSpan ClosingPollInterval = TimeSpan.FromMilliseconds(50);
+
     private readonly Uri _uri;
     private readonly BuConnectionOptions _options;
     private readonly TimeProvider _timeProvider;
@@ -30,6 +37,9 @@ public sealed partial class BuConnection : IBoxGateway
 
     private ClientWebSocket? _socket;
     private PendingCommand? _pending;
+
+    // Completes when the link is up; replaced by a fresh one when it drops.
+    private TaskCompletionSource _connected = NewConnectedSignal();
 
     public BuConnection(Uri uri, BuConnectionOptions options, TimeProvider timeProvider, ILogger<BuConnection> logger)
     {
@@ -69,17 +79,90 @@ public sealed partial class BuConnection : IBoxGateway
         _events.Writer.TryComplete();
     }
 
+    /// <remarks>
+    /// The real BU (firmware 13.IO2.01) drops its link every 20–30 s and is back within seconds,
+    /// so a command waits up to <see cref="BuConnectionOptions.ReconnectWait"/> for the link
+    /// instead of failing, and is sent once more if the link drops before the reply. Opening a
+    /// lock twice is harmless: the second open finds it already unlatched.
+    /// </remarks>
     public async Task<CommandResult> SendAsync(BuCommand command, CancellationToken cancellationToken)
     {
         await _sendGate.WaitAsync(cancellationToken);
         try
         {
-            var socket = Volatile.Read(ref _socket);
-            if (socket is not { State: WebSocketState.Open })
+            var deadline = _timeProvider.GetUtcNow() + _options.ReconnectWait;
+            for (var attempt = 1; ; attempt++)
             {
-                return CommandResult.NotConnected;
+                var socket = await WaitForLinkAsync(deadline, cancellationToken);
+                if (socket is null)
+                {
+                    return CommandResult.NotConnected;
+                }
+
+                var result = await SendOnceAsync(socket, command, cancellationToken);
+                if (result.Outcome != CommandOutcome.NotConnected || attempt == MaxSendAttempts)
+                {
+                    return result;
+                }
+
+                LogResending(_uri, command);
+            }
+        }
+        finally
+        {
+            _sendGate.Release();
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _sendGate.Dispose();
+        _events.Writer.TryComplete();
+        return ValueTask.CompletedTask;
+    }
+
+    private static TaskCompletionSource NewConnectedSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Returns the open socket, or <c>null</c> if the link is not up by <paramref name="deadline"/>.</summary>
+    private async Task<ClientWebSocket?> WaitForLinkAsync(DateTimeOffset deadline, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            // Read the signal before the socket: a drop replaces the signal before clearing the socket.
+            var connected = Volatile.Read(ref _connected);
+            var socket = Volatile.Read(ref _socket);
+            if (socket is { State: WebSocketState.Open })
+            {
+                return socket;
             }
 
+            var remaining = deadline - _timeProvider.GetUtcNow();
+            if (remaining <= TimeSpan.Zero)
+            {
+                return null;
+            }
+
+            if (connected.Task.IsCompleted)
+            {
+                await Task.Delay(ClosingPollInterval < remaining ? ClosingPollInterval : remaining, _timeProvider, cancellationToken);
+                continue;
+            }
+
+            try
+            {
+                await connected.Task.WaitAsync(remaining, _timeProvider, cancellationToken);
+            }
+            catch (TimeoutException)
+            {
+                return null;
+            }
+        }
+    }
+
+    private async Task<CommandResult> SendOnceAsync(ClientWebSocket socket, BuCommand command, CancellationToken cancellationToken)
+    {
+        try
+        {
             var pending = command.ExpectsReply ? new PendingCommand(command) : null;
             Volatile.Write(ref _pending, pending);
 
@@ -99,15 +182,7 @@ public sealed partial class BuConnection : IBoxGateway
         finally
         {
             Volatile.Write(ref _pending, null);
-            _sendGate.Release();
         }
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        _sendGate.Dispose();
-        _events.Writer.TryComplete();
-        return ValueTask.CompletedTask;
     }
 
     private async Task<CommandResult> WaitForReplyAsync(PendingCommand pending, CancellationToken cancellationToken)
@@ -139,6 +214,7 @@ public sealed partial class BuConnection : IBoxGateway
 
             connected = true;
             Volatile.Write(ref _socket, socket);
+            Volatile.Read(ref _connected).TrySetResult();
             LogConnected(_uri);
             _events.Writer.TryWrite(new ConnectionChanged(IsConnected: true));
 
@@ -157,6 +233,7 @@ public sealed partial class BuConnection : IBoxGateway
         {
             if (connected)
             {
+                Volatile.Write(ref _connected, NewConnectedSignal());
                 Volatile.Write(ref _socket, null);
                 Volatile.Read(ref _pending)?.Abandon();
                 _events.Writer.TryWrite(new ConnectionChanged(IsConnected: false));
@@ -269,6 +346,9 @@ public sealed partial class BuConnection : IBoxGateway
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "BU {Uri} -> {Json}")]
     private partial void LogReceived(Uri uri, string json);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Link to BU {Uri} dropped before the reply to {Command}; sending it again")]
+    private partial void LogResending(Uri uri, BuCommand command);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Sending {Command} to BU {Uri} failed")]
     private partial void LogSendFailed(Exception exception, Uri uri, BuCommand command);

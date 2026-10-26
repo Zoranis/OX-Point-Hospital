@@ -32,7 +32,7 @@ public sealed partial class DatabaseInitializer(
 
         if (options.Value.SeedDemoData)
         {
-            await demoData.SeedAsync(cancellationToken);
+            await demoData.SeedAsync(options.Value.DemoBoxBarcodes, cancellationToken);
         }
     }
 

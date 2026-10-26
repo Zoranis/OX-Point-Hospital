@@ -27,7 +27,11 @@ public sealed partial class DemoDataSeeder(OxBoxDbContext db, TimeProvider time,
         new("1305", "ARO", "O2-ARO", FullInBox: 1, OnWard: 2, WithSupplier: 2),
     ];
 
-    public async Task SeedAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Seeds an empty database. <paramref name="boxBarcodes"/> lists the demo cylinders to place
+    /// full in the box, slot 1 first; empty for the standard layout.
+    /// </summary>
+    public async Task SeedAsync(IReadOnlyList<string> boxBarcodes, CancellationToken cancellationToken)
     {
         if (await db.CostCentres.AnyAsync(cancellationToken)
             || await db.Boxes.Include(b => b.Positions).OrderBy(b => b.Id).FirstOrDefaultAsync(cancellationToken) is not { } box)
@@ -36,7 +40,7 @@ public sealed partial class DemoDataSeeder(OxBoxDbContext db, TimeProvider time,
         }
 
         var settings = await db.SystemSettings.SingleAsync(cancellationToken);
-        var toRestock = new List<Cylinder>();
+        var standardInBox = new List<Cylinder>();
 
         foreach (var demo in CostCentres)
         {
@@ -48,7 +52,7 @@ public sealed partial class DemoDataSeeder(OxBoxDbContext db, TimeProvider time,
             {
                 var cylinder = new Cylinder(Barcode(demo, number++), costCentre, CylinderStatus.Empty, CylinderLocation.WithSupplier);
                 db.Cylinders.Add(cylinder);
-                toRestock.Add(cylinder);
+                standardInBox.Add(cylinder);
             }
 
             for (var i = 0; i < demo.OnWard; i++)
@@ -69,6 +73,8 @@ public sealed partial class DemoDataSeeder(OxBoxDbContext db, TimeProvider time,
         // Cylinders need their IDs before their status changes can refer to them.
         await db.SaveChangesAsync(cancellationToken);
 
+        var toRestock = boxBarcodes.Count == 0 ? standardInBox : PickDemoCylinders(boxBarcodes);
+
         var now = time.GetUtcNow();
         foreach (var (position, cylinder) in box.Positions.OrderBy(position => position.Number).Zip(toRestock))
         {
@@ -79,6 +85,16 @@ public sealed partial class DemoDataSeeder(OxBoxDbContext db, TimeProvider time,
 
         await db.SaveChangesAsync(cancellationToken);
         LogSeeded(CostCentres.Length, toRestock.Count);
+    }
+
+    private List<Cylinder> PickDemoCylinders(IReadOnlyList<string> barcodes)
+    {
+        var cylinders = db.Cylinders.Local.ToDictionary(cylinder => cylinder.Barcode, StringComparer.Ordinal);
+        return
+        [
+            .. barcodes.Select(barcode => cylinders.GetValueOrDefault(barcode.Trim())
+                ?? throw new InvalidOperationException($"Database:DemoBoxBarcodes lists {barcode}, which is not a demo cylinder.")),
+        ];
     }
 
     private static string Barcode(DemoCostCentre demo, int number) => $"{demo.BarcodePrefix}-{number:00}";

@@ -25,7 +25,7 @@ public sealed record OpenLock(LockAddress Lock) : BuCommand
         new JsonObject { [WireNames.Open] = new JsonArray(Lock.Board, Lock.LockNumber) }.ToJsonString();
 
     public override bool IsAnsweredBy(BuMessage message) =>
-        message is LockOpenReply reply && reply.Lock == Lock;
+        (message is LockOpenReply reply && reply.Lock == Lock) || message is LockOpenAcknowledged;
 }
 
 /// <summary><c>{"Request": board}</c></summary>

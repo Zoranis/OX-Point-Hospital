@@ -22,6 +22,7 @@ public sealed partial class BoxHardware(string boxCode, IBoxGateway gateway, int
                 case { Outcome: CommandOutcome.NotConnected }:
                     return OpenOutcome.NotConnected;
                 case { Reply: LockOpenReply { Succeeded: true } }:
+                case { Reply: LockOpenAcknowledged { Succeeded: true } }:
                     return OpenOutcome.Opened;
                 default:
                     LogOpenAttemptFailed(boxCode, position.Number, attempt, result.Outcome);

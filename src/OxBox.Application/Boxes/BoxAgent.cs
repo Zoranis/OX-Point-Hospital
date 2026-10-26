@@ -24,6 +24,13 @@ public sealed partial class BoxAgent(
     ILoggerFactory loggerFactory)
 {
     private readonly ILogger _logger = loggerFactory.CreateLogger<BoxAgent>();
+    private readonly Channel<BoxEvent> _events = Channel.CreateUnbounded<BoxEvent>(new UnboundedChannelOptions { SingleReader = true });
+
+    // When the display should switch to out of service, while the link is down; null otherwise.
+    private DateTimeOffset? _outOfServiceAtUtc;
+
+    private string? _lastScanCode;
+    private DateTimeOffset _lastScanAtUtc;
 
     public int BoxId => box.BoxId;
 
@@ -36,16 +43,15 @@ public sealed partial class BoxAgent(
         var hardware = new BoxHardware(box.BoxCode, gateway, options.Value.OpenAttempts, loggerFactory.CreateLogger<BoxHardware>());
         var signals = new BoxSignals(box.BoxCode, hardware, display, loggerFactory.CreateLogger<BoxSignals>());
         var link = new BoxLink(box.BoxId, box.BoxCode, hardware, signals);
-        var events = Channel.CreateUnbounded<BoxEvent>(new UnboundedChannelOptions { SingleReader = true });
 
         var producers = Task.WhenAll(
             gateway.RunAsync(cancellationToken),
-            ForwardGatewayEventsAsync(gateway, events.Writer, cancellationToken),
-            ProduceTicksAsync(events.Writer, cancellationToken));
+            ForwardGatewayEventsAsync(gateway, _events.Writer, cancellationToken),
+            ProduceTicksAsync(_events.Writer, cancellationToken));
 
         try
         {
-            await foreach (var boxEvent in events.Reader.ReadAllAsync(cancellationToken))
+            await foreach (var boxEvent in _events.Reader.ReadAllAsync(cancellationToken))
             {
                 await HandleSafelyAsync(link, boxEvent, cancellationToken);
             }
@@ -57,6 +63,16 @@ public sealed partial class BoxAgent(
 
         await producers;
         statusBoard.Report(box.BoxId, isRunHere: false, isConnected: false);
+    }
+
+    /// <summary>
+    /// Queues <paramref name="code"/> as if the BU had read it, so it takes the same path as a
+    /// real scan and drives the real locks. See <see cref="IBoxAgents.SimulateScanAsync"/>.
+    /// </summary>
+    public void SimulateScan(string code, string userName)
+    {
+        LogSimulatedScan(box.BoxCode, code, userName);
+        _events.Writer.TryWrite(new FromGateway(new BuMessageReceived(new ScanReceived(code, ScanSource.QrOrBarcode))));
     }
 
     private static async Task ForwardGatewayEventsAsync(IBoxGateway gateway, ChannelWriter<BoxEvent> events, CancellationToken cancellationToken)
@@ -107,15 +123,39 @@ public sealed partial class BoxAgent(
     {
         FromGateway { Event: ConnectionChanged { IsConnected: true } } => OnConnectedAsync(link, cancellationToken),
         FromGateway { Event: ConnectionChanged { IsConnected: false } } => OnDisconnected(),
-        FromGateway { Event: BuMessageReceived { Message: ScanReceived scan } } =>
-            WithEventsAsync(events => events.ScannedAsync(link, scan.Code, cancellationToken)),
+        FromGateway { Event: BuMessageReceived { Message: ScanReceived scan } } => OnScanAsync(link, scan.Code, cancellationToken),
         FromGateway { Event: BuMessageReceived { Message: BuNotification notification } } => OnNotification(notification),
-        Tick when link.Visit is not null => WithEventsAsync(events => events.TickAsync(link, cancellationToken)),
+        Tick => OnTickAsync(link, cancellationToken),
         _ => Task.CompletedTask,
     };
 
+    private Task OnScanAsync(BoxLink link, string code, CancellationToken cancellationToken)
+    {
+        // Each repeat restarts the window, so a code held in front of the reader counts once.
+        var now = time.GetUtcNow();
+        var isRepeat = code == _lastScanCode && now - _lastScanAtUtc < options.Value.RepeatScanWindow;
+        _lastScanCode = code;
+        _lastScanAtUtc = now;
+        if (isRepeat)
+        {
+            LogRepeatedScanIgnored(box.BoxCode, code);
+            return Task.CompletedTask;
+        }
+
+        return WithEventsAsync(events => events.ScannedAsync(link, code, cancellationToken));
+    }
+
+    private Task OnTickAsync(BoxLink link, CancellationToken cancellationToken)
+    {
+        ShowOutOfServiceWhenDue();
+        return link.Visit is null
+            ? Task.CompletedTask
+            : WithEventsAsync(events => events.TickAsync(link, cancellationToken));
+    }
+
     private Task OnConnectedAsync(BoxLink link, CancellationToken cancellationToken)
     {
+        _outOfServiceAtUtc = null;
         statusBoard.Report(box.BoxId, isRunHere: true, isConnected: true);
         LogConnected(box.BoxCode);
         return WithEventsAsync(events => events.ConnectedAsync(link, cancellationToken));
@@ -125,8 +165,18 @@ public sealed partial class BoxAgent(
     {
         statusBoard.Report(box.BoxId, isRunHere: true, isConnected: false);
         LogDisconnected(box.BoxCode);
-        display.Show(box.BoxCode, new OutOfServiceScreen());
+        _outOfServiceAtUtc = time.GetUtcNow() + options.Value.OfflineScreenDelay;
+        ShowOutOfServiceWhenDue();
         return Task.CompletedTask;
+    }
+
+    private void ShowOutOfServiceWhenDue()
+    {
+        if (_outOfServiceAtUtc is { } dueUtc && time.GetUtcNow() >= dueUtc)
+        {
+            display.Show(box.BoxCode, new OutOfServiceScreen());
+            _outOfServiceAtUtc = null;
+        }
     }
 
     // Box door (TAMPER), OPEN ALL and similar notifications are not part of the RFQ; they are only logged.
@@ -153,6 +203,12 @@ public sealed partial class BoxAgent(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Box {BoxCode}: BU connection lost")]
     private partial void LogDisconnected(string boxCode);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Box {BoxCode}: repeated scan of {Code} ignored")]
+    private partial void LogRepeatedScanIgnored(string boxCode, string code);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Box {BoxCode}: simulated scan of {Code} by {UserName} from the web app")]
+    private partial void LogSimulatedScan(string boxCode, string code, string userName);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Box {BoxCode}: BU reported {Notification}")]
     private partial void LogNotification(string boxCode, BuNotificationKind notification);

@@ -18,6 +18,13 @@ public sealed class DatabaseOptions
     /// </summary>
     public bool SeedDemoData { get; set; }
 
+    /// <summary>
+    /// With <see cref="SeedDemoData"/>: the demo cylinders the box starts with, full, from slot 1
+    /// on, for example <c>["O2-ARO-04", "O2-ARO-05"]</c> for a real BU with two wired locks. Leave
+    /// empty for the standard demo that matches the simulator.
+    /// </summary>
+    public List<string> DemoBoxBarcodes { get; set; } = [];
+
     /// <summary>Creates this box on first start if no box exists yet. Leave unset to skip.</summary>
     public DefaultBoxOptions? DefaultBox { get; set; }
 }

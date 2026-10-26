@@ -29,6 +29,7 @@ public class BuCommandTests
 
         command.IsAnsweredBy(new LockOpenReply(new LockAddress(1, 5), true, "OK")).Should().BeTrue();
         command.IsAnsweredBy(new LockOpenReply(new LockAddress(1, 6), true, "OK")).Should().BeFalse();
+        command.IsAnsweredBy(new LockOpenAcknowledged(true, "OK")).Should().BeTrue();
         command.IsAnsweredBy(new LockStatusReply(1, new LockMask(0))).Should().BeFalse();
     }
 

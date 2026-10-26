@@ -22,6 +22,7 @@ public sealed class BuConnectionTests : IAsyncLifetime
         var options = new BuConnectionOptions
         {
             CommandTimeout = TimeSpan.FromMilliseconds(300),
+            ReconnectWait = TimeSpan.FromSeconds(1),
             InitialReconnectDelay = TimeSpan.FromMilliseconds(100),
         };
         _connection = new BuConnection(_bu.Uri, options, TimeProvider.System, NullLogger<BuConnection>.Instance);
@@ -37,11 +38,36 @@ public sealed class BuConnectionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SendAsync_BeforeConnecting_ReturnsNotConnected()
+    public async Task SendAsync_NeverConnected_ReturnsNotConnectedAfterReconnectWait()
     {
         var result = await _connection.SendAsync(new RequestLockStatus(0), CancellationToken.None);
 
         result.Outcome.Should().Be(CommandOutcome.NotConnected);
+    }
+
+    [Fact]
+    public async Task SendAsync_LinkComesUpWhileWaiting_SendsOnceConnected()
+    {
+        _bu.Respond = _ => """{ "Response" : "OK", "Board" : 0, "Lock" : 3 }""";
+        var send = _connection.SendAsync(new OpenLock(new LockAddress(0, 3)), CancellationToken.None);
+
+        await ConnectAsync();
+        var result = await send.WaitAsync(WaitLimit);
+
+        result.Outcome.Should().Be(CommandOutcome.Replied);
+    }
+
+    [Fact]
+    public async Task SendAsync_LinkDropsBeforeReply_SendsAgainAfterReconnecting()
+    {
+        _bu.Respond = _ => """{ "Response" : "OK", "Board" : 0, "Lock" : 3 }""";
+        await ConnectAsync();
+        _bu.DropLinkOnNextCommand();
+
+        var result = await _connection.SendAsync(new OpenLock(new LockAddress(0, 3)), CancellationToken.None).WaitAsync(WaitLimit);
+
+        result.Outcome.Should().Be(CommandOutcome.Replied);
+        _bu.ReceivedCommands.Should().HaveCount(2);
     }
 
     [Fact]
